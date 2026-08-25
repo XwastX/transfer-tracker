@@ -1,0 +1,25 @@
+# Поднимает self-hosted transfermarkt-api на localhost:8000.
+# Сам дашборд запускается отдельно: `node server.js` (см. README).
+#
+#   docker compose up -d
+#   docker compose logs -f transfermarkt-api
+#   docker compose down
+
+services:
+  transfermarkt-api:
+    # Сборка прямо из репозитория проекта — отдельный Dockerfile не нужен.
+    build: https://github.com/felipeall/transfermarkt-api.git
+    container_name: transfermarkt-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Ограничение частоты запросов к Transfermarkt. Держите включённым:
+      # без него источник быстро начинает отдавать 429/403.
+      RATE_LIMITING_ENABLE: "true"
+      RATE_LIMITING_FREQUENCY: "2/3seconds"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3

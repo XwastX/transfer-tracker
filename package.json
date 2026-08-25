@@ -1,0 +1,15 @@
+{
+  "name": "transfer-tracker",
+  "version": "1.0.0",
+  "description": "Дашборд рыночной стоимости футболистов и трансферов. Данные — self-hosted transfermarkt-api.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node scripts/build-seed.js",
+    "preview": "node scripts/build-preview.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "license": "MIT"
+}
