@@ -1,0 +1,1509 @@
+<title>Transfer Tracker</title>
+<meta name="description" content="Дашборд рыночной стоимости футболистов, ленты трансферов и стоимости составов." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ───────────────────────────────────────────────────────────────────────────
+   Transfer Tracker — тёмная тема.
+   Палитра графиков валидирована по чек-листу дата-виз (CVD ΔE, контраст ≥3:1
+   на поверхности #141922).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* поверхности */
+  --bg:          #0a0d13;
+  --surface-1:   #141922;   /* карточки и поверхность графиков */
+  --surface-2:   #1b212c;   /* вложенные блоки, hover */
+  --surface-3:   #232a36;
+  --border:      rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.05);
+
+  /* текст */
+  --text:        #ffffff;
+  --text-2:      #a8b1c1;
+  --muted:       #717d90;
+
+  /* графики */
+  --series-1:    #3987e5;   /* blue  */
+  --series-2:    #d95926;   /* orange */
+  --series-3:    #199e70;   /* aqua  */
+  --grid:        #232a36;
+  --axis:        #2f3644;
+
+  /* статус */
+  --good:        #0ca30c;
+  --good-ink:    #46d16d;
+  --critical:    #d03b3b;
+  --critical-ink:#f07070;
+  --warning:     #fab219;
+
+  --radius:      14px;
+  --radius-sm:   9px;
+  --shadow:      0 10px 30px rgba(0, 0, 0, .45);
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* Авторские display-правила ниже перебивают браузерное [hidden]{display:none} —
+   возвращаем его принудительно, иначе скрытые блоки остаются на экране. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 520px at 78% -12%, rgba(57, 135, 229, .13), transparent 62%),
+    radial-gradient(760px 420px at 6% 0%, rgba(25, 158, 112, .08), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Топбар ───────────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 18px;
+  padding: 12px 22px;
+  background: rgba(10, 13, 19, .82);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; flex: none; }
+.brand-mark {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border-radius: 10px; color: #fff;
+  background: linear-gradient(140deg, var(--series-1), #1c5cab);
+  box-shadow: 0 4px 14px rgba(57, 135, 229, .32);
+}
+.brand-text { font-size: 15px; letter-spacing: -.2px; color: var(--text-2); }
+.brand-text b { color: var(--text); font-weight: 700; }
+
+.search { position: relative; flex: 1; max-width: 460px; }
+.search-ico {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none;
+}
+.search input {
+  width: 100%; height: 38px; padding: 0 12px 0 34px;
+  background: var(--surface-1); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.search input::placeholder { color: var(--muted); }
+.search input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57, 135, 229, .18); }
+
+.search-results {
+  position: absolute; top: 44px; left: 0; right: 0; z-index: 50;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+  max-height: 340px; overflow-y: auto;
+}
+.search-results button {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; background: none; border: 0; color: var(--text);
+  text-align: left; cursor: pointer;
+}
+.search-results button:hover { background: var(--surface-2); }
+.search-results .sr-name { font-weight: 500; }
+.search-results .sr-club { color: var(--muted); font-size: 12px; }
+.search-results .sr-val { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.search-empty { padding: 12px; color: var(--muted); }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 30px; padding: 0 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-2);
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill--live { color: var(--good-ink); border-color: rgba(70, 209, 109, .3); }
+.pill--live .dot { box-shadow: 0 0 0 0 rgba(70, 209, 109, .5); animation: pulse 2s infinite; }
+.pill--seed { color: var(--warning); border-color: rgba(250, 178, 25, .28); }
+.pill--error { color: var(--critical-ink); border-color: rgba(240, 112, 112, .3); }
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(70, 209, 109, .45); }
+  70%  { box-shadow: 0 0 0 7px rgba(70, 209, 109, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(70, 209, 109, 0); }
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 12px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.btn:hover { background: var(--surface-2); color: var(--text); }
+.btn--primary { background: var(--series-1); border-color: transparent; color: #fff; }
+.btn--primary:hover { background: #2a78d6; color: #fff; }
+.btn[disabled] { opacity: .5; cursor: default; }
+
+/* ── Полоса прогресса сборки ──────────────────────────────────────────────── */
+.build-bar {
+  position: sticky; top: 63px; z-index: 35;
+  display: flex; align-items: center; gap: 10px;
+  height: 30px; padding: 0 22px; font-size: 12px; color: var(--text-2);
+  background: rgba(20, 25, 34, .9); border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.build-bar-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: linear-gradient(90deg, rgba(57, 135, 229, .3), rgba(57, 135, 229, .1));
+  transition: width .4s ease;
+}
+.build-bar span { position: relative; }
+
+/* ── Каркас ───────────────────────────────────────────────────────────────── */
+.shell { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 0; }
+
+.rail {
+  position: sticky; top: 63px; align-self: start;
+  height: calc(100vh - 63px);
+  padding: 18px 12px; display: flex; flex-direction: column; gap: 3px;
+  border-right: 1px solid var(--border);
+}
+.rail a {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 10px;
+  color: var(--text-2); font-weight: 500;
+  transition: background .15s, color .15s;
+}
+.rail a:hover { background: var(--surface-1); color: var(--text); }
+.rail a.active { background: var(--surface-2); color: var(--text); }
+.rail a.active svg { color: var(--series-1); }
+.rail svg { flex: none; color: var(--muted); transition: color .15s; }
+.rail a:hover svg { color: var(--text-2); }
+
+.view { padding: 26px 30px 60px; min-width: 0; }
+
+.page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.page-head h1 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -.4px; }
+.page-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+/* ── Карточки ─────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.card-head h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.1px; }
+.card-head .sub { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+.grid { display: grid; gap: 16px; align-items: start; }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-7-5 { grid-template-columns: 7fr 5fr; }
+.col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+/* Плитки-метрики */
+.tile { position: relative; overflow: hidden; }
+.tile .label { color: var(--muted); font-size: 12px; font-weight: 500; }
+.tile .value { margin-top: 6px; font-size: 27px; font-weight: 600; letter-spacing: -.8px; }
+.tile .foot { margin-top: 6px; font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.tile .glow {
+  position: absolute; right: -30px; top: -40px; width: 120px; height: 120px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(57,135,229,.16), transparent 68%);
+  pointer-events: none;
+}
+
+.delta { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; font-weight: 500; }
+.delta--up { color: var(--good-ink); }
+.delta--down { color: var(--critical-ink); }
+.delta--flat { color: var(--muted); }
+
+/* ── Фильтры ──────────────────────────────────────────────────────────────── */
+.filters {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filters select, .filters input[type=text] {
+  height: 34px; padding: 0 10px; border-radius: 9px;
+  background: var(--surface-1); color: var(--text);
+  border: 1px solid var(--border); outline: none;
+}
+.filters select:focus, .filters input:focus { border-color: var(--series-1); }
+.chips { display: inline-flex; gap: 5px; background: var(--surface-1); padding: 3px; border-radius: 10px; border: 1px solid var(--border); }
+.chip {
+  padding: 5px 11px; border-radius: 7px; border: 0; background: none;
+  color: var(--text-2); cursor: pointer; font-size: 13px; transition: background .15s, color .15s;
+}
+.chip:hover { color: var(--text); }
+.chip.active { background: var(--surface-3); color: var(--text); }
+.filters .spacer { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* ── Таблица ──────────────────────────────────────────────────────────────── */
+.table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-1); }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 780px; }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 11px 14px; text-align: left; font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+thead th.sortable { cursor: pointer; user-select: none; }
+thead th.sortable:hover { color: var(--text-2); }
+thead th .arrow { opacity: .45; font-size: 10px; }
+thead th.sorted { color: var(--text); }
+thead th.sorted .arrow { opacity: 1; color: var(--series-1); }
+tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; transition: background .12s; }
+tbody tr:hover { background: var(--surface-2); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.rank { color: var(--muted); font-variant-numeric: tabular-nums; width: 44px; }
+
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.avatar {
+  flex: none; width: 32px; height: 32px; border-radius: 9px;
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 600;
+  background: var(--surface-3); color: var(--text-2); letter-spacing: .3px;
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.who-main { min-width: 0; }
+.who-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who-sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px;
+  background: var(--surface-3); color: var(--text-2); white-space: nowrap;
+}
+.tag--GK { background: rgba(250,178,25,.14); color: #f0c04a; }
+.tag--DF { background: rgba(57,135,229,.14); color: #7bb0ee; }
+.tag--MF { background: rgba(25,158,112,.16); color: #4dc79b; }
+.tag--FW { background: rgba(217,89,38,.15); color: #e88a5e; }
+
+.money { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+.pager { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12.5px; }
+.pager .btn { height: 28px; }
+
+/* ── Графики ──────────────────────────────────────────────────────────────── */
+.chart { width: 100%; display: block; }
+.chart--area { height: auto; }
+.chart text { font-family: var(--font); }
+.axis-label { fill: var(--muted); font-size: 11px; }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.pt-hit { cursor: crosshair; }
+
+/* Горизонтальные бары (HTML) */
+.hbar { display: grid; gap: 9px; }
+.hbar-row {
+  display: grid; grid-template-columns: minmax(72px, 148px) minmax(0, 1fr) 78px;
+  align-items: center; gap: 12px; cursor: pointer; border-radius: 7px;
+  padding: 2px 4px; margin: -2px -4px; transition: background .12s;
+}
+.hbar-row:hover { background: var(--surface-2); }
+.hbar-label {
+  color: var(--text-2); font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hbar-track { height: 16px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 0 4px 4px 0; transition: width .5s cubic-bezier(.2,.7,.3,1); }
+.hbar-row:hover .hbar-fill { filter: brightness(1.15); }
+.hbar-value {
+  text-align: right; color: var(--text-2); font-size: 12px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* Диверджентные бары (HTML) */
+.dv { display: grid; gap: 10px; }
+.dv-row {
+  display: grid; grid-template-columns: minmax(72px, 132px) 1fr 1px 1fr;
+  align-items: center; gap: 0 10px; cursor: pointer; border-radius: 7px;
+  padding: 3px 4px; margin: -3px -4px; transition: background .12s;
+}
+.dv-row:hover { background: var(--surface-2); }
+.dv-label {
+  color: var(--text-2); font-size: 12.5px; padding-right: 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dv-side { display: flex; height: 14px; align-items: center; }
+.dv-side--l { justify-content: flex-end; }
+.dv-axis { width: 1px; height: 22px; background: var(--axis); }
+.dv-bar { display: block; height: 100%; min-width: 2px; border-radius: 3px; }
+.dv-side--l .dv-bar { border-radius: 4px 1px 1px 4px; margin-right: 2px; }
+.dv-side--r .dv-bar { border-radius: 1px 4px 4px 1px; margin-left: 2px; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.tooltip {
+  position: fixed; z-index: 100; pointer-events: none;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 9px; padding: 8px 10px; box-shadow: var(--shadow);
+  font-size: 12.5px; max-width: 260px;
+}
+.tooltip b { display: block; margin-bottom: 3px; font-weight: 600; }
+.tooltip .tt-row { color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* ── Лента трансферов ─────────────────────────────────────────────────────── */
+.feed { display: grid; gap: 10px; }
+.transfer {
+  display: grid; grid-template-columns: minmax(150px, 232px) minmax(0, 1fr) 128px 112px;
+  align-items: center; gap: 14px;
+  padding: 13px 16px; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; transition: border-color .15s, background .15s, transform .15s;
+}
+.transfer:hover { background: var(--surface-2); border-color: rgba(57,135,229,.35); transform: translateY(-1px); }
+
+/* Узкий вариант для боковой карточки: маршрут уходит на вторую строку */
+.transfer--compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 8px; column-gap: 12px; align-items: center;
+}
+.transfer--riser { grid-template-columns: minmax(0, 1fr) 112px 82px; }
+.transfer--compact .fee { grid-column: 2; grid-row: 1; }
+.transfer--compact .route { grid-column: 1; grid-row: 2; font-size: 12.5px; }
+.transfer--compact .meta { grid-column: 2; grid-row: 2; }
+.route { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text-2); }
+.route .club { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route .club.to { color: var(--text); font-weight: 500; }
+.route .arr { flex: none; color: var(--series-1); }
+.fee { text-align: right; }
+.fee .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fee .cap { color: var(--muted); font-size: 11.5px; }
+.meta { text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;
+}
+.badge--upcoming { background: rgba(250,178,25,.14); color: #f0c04a; }
+.badge--free { background: rgba(25,158,112,.16); color: #4dc79b; }
+.badge--loan { background: rgba(57,135,229,.14); color: #7bb0ee; }
+
+/* ── Клубы ────────────────────────────────────────────────────────────────── */
+.club-card { display: flex; flex-direction: column; gap: 12px; cursor: default; }
+.club-top { display: flex; align-items: center; gap: 11px; }
+.club-top .avatar { width: 38px; height: 38px; border-radius: 10px; background: var(--surface-3); }
+.club-name { font-weight: 600; }
+.club-league { color: var(--muted); font-size: 12px; }
+.club-value { font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
+.bar-track { height: 6px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; background: var(--series-1); }
+.club-stats { display: flex; gap: 16px; color: var(--text-2); font-size: 12px; }
+.club-stats b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.club-stats .delta { font-size: 12px; }
+
+/* ── Панель игрока ────────────────────────────────────────────────────────── */
+.drawer { position: fixed; inset: 0; z-index: 90; }
+.drawer-backdrop { position: absolute; inset: 0; background: rgba(5, 7, 11, .62); backdrop-filter: blur(3px); }
+.drawer-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(560px, 100%);
+  background: var(--surface-1); border-left: 1px solid var(--border);
+  box-shadow: -24px 0 60px rgba(0,0,0,.5);
+  overflow-y: auto; padding: 22px 24px 40px;
+  animation: slide-in .22s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes slide-in { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+.drawer-close {
+  position: absolute; top: 16px; right: 18px; width: 30px; height: 30px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-2); cursor: pointer;
+}
+.drawer-close:hover { color: var(--text); }
+
+.p-head { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; padding-right: 40px; }
+.p-head .avatar { width: 58px; height: 58px; border-radius: 14px; font-size: 17px; }
+.p-head h2 { margin: 0 0 3px; font-size: 20px; font-weight: 600; letter-spacing: -.4px; }
+.p-head .p-sub { color: var(--muted); font-size: 13px; }
+
+.p-hero { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+.p-hero .big { font-size: 32px; font-weight: 600; letter-spacing: -1px; }
+
+.p-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 20px; }
+.p-fact { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; }
+.p-fact .k { color: var(--muted); font-size: 11.5px; }
+.p-fact .v { margin-top: 2px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.p-section-title { font-size: 13px; font-weight: 600; margin: 22px 0 10px; }
+
+.timeline { display: grid; gap: 8px; }
+.tl-item {
+  display: grid; grid-template-columns: 74px minmax(0,1fr) auto; gap: 12px;
+  align-items: center; padding: 10px 12px;
+  background: var(--surface-2); border-radius: var(--radius-sm);
+}
+.tl-date { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.note {
+  display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: rgba(250, 178, 25, .07); border: 1px solid rgba(250, 178, 25, .22);
+  color: var(--text-2); font-size: 12.5px; line-height: 1.55; margin-bottom: 18px;
+}
+.note b { color: var(--warning); }
+
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%; animation: shimmer 1.3s infinite; border-radius: 8px;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+.ext-link { display: inline-flex; align-items: center; gap: 6px; color: var(--series-1); font-size: 12.5px; }
+.ext-link:hover { text-decoration: underline; }
+
+.footnote { margin-top: 26px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+/* ── Адаптив ──────────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-7-5, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail {
+    position: sticky; top: 63px; height: auto; flex-direction: row;
+    overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border);
+    padding: 8px 12px; background: rgba(10,13,19,.9); backdrop-filter: blur(12px); z-index: 30;
+  }
+  .rail a { white-space: nowrap; }
+  .view { padding: 20px 16px 60px; }
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .transfer { grid-template-columns: minmax(0,1fr) auto; row-gap: 8px; }
+  .transfer .route { grid-column: 1 / -1; }
+  .brand-text { display: none; }
+}
+@media (max-width: 620px) {
+  .grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .p-facts { grid-template-columns: repeat(2, 1fr); }
+  .topbar { gap: 10px; padding: 10px 14px; }
+  .btn--ghost span { display: none; }
+}
+
+</style>
+
+
+
+<header class="topbar">
+  <a class="brand" href="#/overview">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3l7.5 5.4-2.9 8.9H7.4L4.5 8.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 3v4.2m0 0l3.6 2.6m-3.6-2.6L8.4 9.8m7.2 0l1 3.2m-1-3.2l3.9-1.4M8.4 9.8l-1 3.2m1-3.2L4.5 8.4m2.9 4.6l2.7 2m6.5-2l-2.7 2m-3.8 0l1.5 4.3m2.3-4.3l-1.5 4.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+    </span>
+    <span class="brand-text">Transfer<b>Tracker</b></span>
+  </a>
+
+  <div class="search" role="search">
+    <svg class="search-ico" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13.2 13.2L17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input id="search-input" type="search" placeholder="Поиск игрока…" autocomplete="off" aria-label="Поиск игрока" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div id="status-pill" class="pill pill--seed" title="Источник данных">
+      <span class="dot"></span><span id="status-text">Демо-данные</span>
+    </div>
+  </div>
+</header>
+
+<div id="build-bar" class="build-bar" hidden>
+  <div class="build-bar-fill" id="build-bar-fill"></div>
+  <span id="build-bar-text">Сборка…</span>
+</div>
+
+<div class="shell">
+  <nav class="rail" aria-label="Разделы">
+    <a href="#/overview" data-view="overview"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="2.5" y="2.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="2.5" width="6" height="9.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11.5" y="15" width="6" height="2.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Обзор</span></a>
+    <a href="#/players" data-view="players"><svg viewBox="0 0 20 20" width="18" height="18"><path d="M3 16.5l4-6 3.5 3 6.5-8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 5H17v3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Стоимость</span></a>
+    <a href="#/transfers" data-view="transfers"><svg viewBox="0 0 20 20" width="18" height="18"><path d="M3 7h11m0 0l-3-3m3 3l-3 3M17 13H6m0 0l3-3m-3 3l3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Трансферы</span></a>
+    <a href="#/clubs" data-view="clubs"><svg viewBox="0 0 20 20" width="18" height="18"><path d="M10 2.5l6 2.2v5.1c0 3.4-2.4 6.4-6 7.7-3.6-1.3-6-4.3-6-7.7V4.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Клубы</span></a>
+    <a href="#/leagues" data-view="leagues"><svg viewBox="0 0 20 20" width="18" height="18"><path d="M6 3h8v3.5a4 4 0 0 1-8 0z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 4H3.5v1.5A2.5 2.5 0 0 0 6 8m8-4h2.5v1.5A2.5 2.5 0 0 1 14 8M10 10.5V14m-2.5 3h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Лиги</span></a>
+  </nav>
+
+  <main id="view" class="view" aria-live="polite"></main>
+</div>
+
+<aside id="drawer" class="drawer" hidden aria-label="Карточка игрока">
+  <div class="drawer-backdrop" data-close></div>
+  <div class="drawer-panel" role="dialog" aria-modal="true">
+    <button class="drawer-close" data-close aria-label="Закрыть">✕</button>
+    <div id="drawer-body"></div>
+  </div>
+</aside>
+
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script>window.__SEED__ = {"source":"seed","generatedAt":"2026-08-25","note":"Резервные демо-данные. Стоимости и трансферы — из открытых публикаций (25.08.2026); помесячная история стоимости синтезирована.","competitions":[{"id":"GB1","name":"Премьер-лига","country":"Англия","flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","clubs":8,"totalValue":7189650000,"spent":1052100000,"income":966100000},{"id":"ES1","name":"Ла Лига","country":"Испания","flag":"🇪🇸","clubs":3,"totalValue":3053000000,"spent":370500000,"income":150000000},{"id":"IT1","name":"Серия А","country":"Италия","flag":"🇮🇹","clubs":3,"totalValue":1771000000,"spent":221700000,"income":194000000},{"id":"L1","name":"Бундеслига","country":"Германия","flag":"🇩🇪","clubs":3,"totalValue":1852950000,"spent":130000000,"income":228000000},{"id":"FR1","name":"Лига 1","country":"Франция","flag":"🇫🇷","clubs":2,"totalValue":1522000000,"spent":82000000,"income":124300000},{"id":"RU1","name":"РПЛ","country":"Россия","flag":"🇷🇺","clubs":4,"totalValue":745000000,"spent":100000000,"income":53000000}],"clubs":[{"id":"418","name":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","country":"Испания","totalValue":1340000000,"squadSize":25,"avgAge":25.1,"spent":154500000,"income":61000000,"balance":-93500000},{"id":"281","name":"Манчестер Сити","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":1310000000,"squadSize":26,"avgAge":25.9,"spent":133400000,"income":118600000,"balance":-14800000},{"id":"11","name":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":1230000000,"squadSize":26,"avgAge":25.4,"spent":145000000,"income":42000000,"balance":-103000000},{"id":"583","name":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","country":"Франция","totalValue":1210000000,"squadSize":25,"avgAge":24.8,"spent":38000000,"income":73300000,"balance":35300000},{"id":"131","name":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","country":"Испания","totalValue":1170000000,"squadSize":24,"avgAge":24.6,"spent":128000000,"income":35000000,"balance":-93000000},{"id":"631","name":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":1160000000,"squadSize":30,"avgAge":23.7,"spent":249000000,"income":128000000,"balance":-121000000},{"id":"31","name":"Ливерпуль","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":1020000000,"squadSize":27,"avgAge":25.3,"spent":63000000,"income":47000000,"balance":-16000000},{"id":"27","name":"Бавария","competitionId":"L1","competitionName":"Бундеслига","country":"Германия","totalValue":968950000,"squadSize":24,"avgAge":26.2,"spent":41000000,"income":29000000,"balance":-12000000},{"id":"148","name":"Тоттенхэм","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":802500000,"squadSize":27,"avgAge":25,"spent":281500000,"income":99000000,"balance":-182500000},{"id":"985","name":"Манчестер Юнайтед","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":747150000,"squadSize":26,"avgAge":25.8,"spent":55200000,"income":71000000,"balance":15800000},{"id":"506","name":"Ювентус","competitionId":"IT1","competitionName":"Серия А","country":"Италия","totalValue":612000000,"squadSize":26,"avgAge":26.4,"spent":74000000,"income":88000000,"balance":14000000},{"id":"46","name":"Интер","competitionId":"IT1","competitionName":"Серия А","country":"Италия","totalValue":598000000,"squadSize":25,"avgAge":27.1,"spent":51000000,"income":44000000,"balance":-7000000},{"id":"5","name":"Милан","competitionId":"IT1","competitionName":"Серия А","country":"Италия","totalValue":561000000,"squadSize":26,"avgAge":26,"spent":96700000,"income":62000000,"balance":-34700000},{"id":"13","name":"Атлетико Мадрид","competitionId":"ES1","competitionName":"Ла Лига","country":"Испания","totalValue":543000000,"squadSize":25,"avgAge":26.7,"spent":88000000,"income":54000000,"balance":-34000000},{"id":"16","name":"Боруссия Дортмунд","competitionId":"L1","competitionName":"Бундеслига","country":"Германия","totalValue":486000000,"squadSize":26,"avgAge":24.9,"spent":47000000,"income":66000000,"balance":19000000},{"id":"405","name":"Ньюкасл","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":468000000,"squadSize":25,"avgAge":26.1,"spent":38000000,"income":292500000,"balance":254500000},{"id":"15","name":"Астон Вилла","competitionId":"GB1","competitionName":"Премьер-лига","country":"Англия","totalValue":452000000,"squadSize":26,"avgAge":26.3,"spent":87000000,"income":168000000,"balance":81000000},{"id":"162","name":"РБ Лейпциг","competitionId":"L1","competitionName":"Бундеслига","country":"Германия","totalValue":398000000,"squadSize":27,"avgAge":24.2,"spent":42000000,"income":133000000,"balance":91000000},{"id":"583b","name":"Марсель","competitionId":"FR1","competitionName":"Лига 1","country":"Франция","totalValue":312000000,"squadSize":26,"avgAge":25.5,"spent":44000000,"income":51000000,"balance":7000000},{"id":"964","name":"Зенит","competitionId":"RU1","competitionName":"РПЛ","country":"Россия","totalValue":268000000,"squadSize":27,"avgAge":26.2,"spent":34000000,"income":18000000,"balance":-16000000},{"id":"232","name":"Спартак Москва","competitionId":"RU1","competitionName":"РПЛ","country":"Россия","totalValue":184000000,"squadSize":28,"avgAge":25.8,"spent":26000000,"income":12000000,"balance":-14000000},{"id":"964b","name":"Краснодар","competitionId":"RU1","competitionName":"РПЛ","country":"Россия","totalValue":152000000,"squadSize":26,"avgAge":25.1,"spent":21000000,"income":9000000,"balance":-12000000},{"id":"235","name":"ЦСКА Москва","competitionId":"RU1","competitionName":"РПЛ","country":"Россия","totalValue":141000000,"squadSize":27,"avgAge":24.7,"spent":19000000,"income":14000000,"balance":-5000000}],"players":[{"id":"seed-эрлинг-холанн","name":"Эрлинг Холанн","position":"Нападающий","age":26,"nationality":["Норвегия"],"clubId":"281","clubName":"Манчестер Сити","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":220000000,"previousValue":200000000,"history":[{"date":"2024-09-01","value":203150000,"clubName":"Манчестер Сити"},{"date":"2024-10-01","value":201900000,"clubName":"Манчестер Сити"},{"date":"2024-11-01","value":196050000,"clubName":"Манчестер Сити"},{"date":"2024-12-01","value":199050000,"clubName":"Манчестер Сити"},{"date":"2025-01-01","value":203600000,"clubName":"Манчестер Сити"},{"date":"2025-02-01","value":202500000,"clubName":"Манчестер Сити"},{"date":"2025-03-01","value":208300000,"clubName":"Манчестер Сити"},{"date":"2025-04-01","value":204450000,"clubName":"Манчестер Сити"},{"date":"2025-05-01","value":207550000,"clubName":"Манчестер Сити"},{"date":"2025-06-01","value":202450000,"clubName":"Манчестер Сити"},{"date":"2025-07-01","value":202700000,"clubName":"Манчестер Сити"},{"date":"2025-08-01","value":211150000,"clubName":"Манчестер Сити"},{"date":"2025-09-01","value":210800000,"clubName":"Манчестер Сити"},{"date":"2025-10-01","value":209500000,"clubName":"Манчестер Сити"},{"date":"2025-11-01","value":214000000,"clubName":"Манчестер Сити"},{"date":"2025-12-01","value":219050000,"clubName":"Манчестер Сити"},{"date":"2026-01-01","value":215050000,"clubName":"Манчестер Сити"},{"date":"2026-02-01","value":222050000,"clubName":"Манчестер Сити"},{"date":"2026-03-01","value":220400000,"clubName":"Манчестер Сити"},{"date":"2026-04-01","value":219500000,"clubName":"Манчестер Сити"},{"date":"2026-05-01","value":218200000,"clubName":"Манчестер Сити"},{"date":"2026-06-01","value":222000000,"clubName":"Манчестер Сити"},{"date":"2026-07-01","value":214850000,"clubName":"Манчестер Сити"},{"date":"2026-08-25","value":220000000,"clubName":"Манчестер Сити"}],"positionGroup":"FW"},{"id":"seed-ламин-ямаль","name":"Ламин Ямаль","position":"Правый вингер","age":19,"nationality":["Испания"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":220000000,"previousValue":180000000,"history":[{"date":"2024-09-01","value":178650000,"clubName":"Барселона"},{"date":"2024-10-01","value":183200000,"clubName":"Барселона"},{"date":"2024-11-01","value":185100000,"clubName":"Барселона"},{"date":"2024-12-01","value":185650000,"clubName":"Барселона"},{"date":"2025-01-01","value":186350000,"clubName":"Барселона"},{"date":"2025-02-01","value":183050000,"clubName":"Барселона"},{"date":"2025-03-01","value":187700000,"clubName":"Барселона"},{"date":"2025-04-01","value":192900000,"clubName":"Барселона"},{"date":"2025-05-01","value":189450000,"clubName":"Барселона"},{"date":"2025-06-01","value":190300000,"clubName":"Барселона"},{"date":"2025-07-01","value":193350000,"clubName":"Барселона"},{"date":"2025-08-01","value":199650000,"clubName":"Барселона"},{"date":"2025-09-01","value":200100000,"clubName":"Барселона"},{"date":"2025-10-01","value":208400000,"clubName":"Барселона"},{"date":"2025-11-01","value":202550000,"clubName":"Барселона"},{"date":"2025-12-01","value":212200000,"clubName":"Барселона"},{"date":"2026-01-01","value":210350000,"clubName":"Барселона"},{"date":"2026-02-01","value":208050000,"clubName":"Барселона"},{"date":"2026-03-01","value":211750000,"clubName":"Барселона"},{"date":"2026-04-01","value":220100000,"clubName":"Барселона"},{"date":"2026-05-01","value":217250000,"clubName":"Барселона"},{"date":"2026-06-01","value":213700000,"clubName":"Барселона"},{"date":"2026-07-01","value":224650000,"clubName":"Барселона"},{"date":"2026-08-25","value":220000000,"clubName":"Барселона"}],"positionGroup":"FW"},{"id":"seed-килиан-мбаппе","name":"Килиан Мбаппе","position":"Нападающий","age":27,"nationality":["Франция"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":200000000,"previousValue":180000000,"history":[{"date":"2024-09-01","value":178000000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":182750000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":179200000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":180350000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":185850000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":186300000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":178550000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":186100000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":188800000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":187800000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":190800000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":187900000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":189150000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":189150000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":195850000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":193250000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":195200000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":194300000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":193450000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":198150000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":197600000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":203700000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":197050000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":200000000,"clubName":"Реал Мадрид"}],"positionGroup":"FW"},{"id":"seed-майкл-олисе","name":"Майкл Олисе","position":"Правый вингер","age":24,"nationality":["Франция"],"clubId":"27","clubName":"Бавария","competitionId":"L1","competitionName":"Бундеслига","marketValue":170000000,"previousValue":130000000,"history":[{"date":"2024-09-01","value":131550000,"clubName":"Бавария"},{"date":"2024-10-01","value":126350000,"clubName":"Бавария"},{"date":"2024-11-01","value":131550000,"clubName":"Бавария"},{"date":"2024-12-01","value":135250000,"clubName":"Бавария"},{"date":"2025-01-01","value":134200000,"clubName":"Бавария"},{"date":"2025-02-01","value":137550000,"clubName":"Бавария"},{"date":"2025-03-01","value":140300000,"clubName":"Бавария"},{"date":"2025-04-01","value":138500000,"clubName":"Бавария"},{"date":"2025-05-01","value":138800000,"clubName":"Бавария"},{"date":"2025-06-01","value":140000000,"clubName":"Бавария"},{"date":"2025-07-01","value":147300000,"clubName":"Бавария"},{"date":"2025-08-01","value":149800000,"clubName":"Бавария"},{"date":"2025-09-01","value":150000000,"clubName":"Бавария"},{"date":"2025-10-01","value":154750000,"clubName":"Бавария"},{"date":"2025-11-01","value":159850000,"clubName":"Бавария"},{"date":"2025-12-01","value":163100000,"clubName":"Бавария"},{"date":"2026-01-01","value":165200000,"clubName":"Бавария"},{"date":"2026-02-01","value":163850000,"clubName":"Бавария"},{"date":"2026-03-01","value":168050000,"clubName":"Бавария"},{"date":"2026-04-01","value":164550000,"clubName":"Бавария"},{"date":"2026-05-01","value":165700000,"clubName":"Бавария"},{"date":"2026-06-01","value":168950000,"clubName":"Бавария"},{"date":"2026-07-01","value":169350000,"clubName":"Бавария"},{"date":"2026-08-25","value":170000000,"clubName":"Бавария"}],"positionGroup":"FW"},{"id":"seed-джуд-беллингем","name":"Джуд Беллингем","position":"Атакующий полузащитник","age":23,"nationality":["Англия"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":160000000,"previousValue":180000000,"history":[{"date":"2024-09-01","value":176200000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":181750000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":180200000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":182350000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":174550000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":179350000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":176650000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":173150000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":175950000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":170500000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":169400000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":173400000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":166800000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":169950000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":168400000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":162400000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":162450000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":166500000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":163450000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":158650000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":161650000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":164750000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":164000000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":160000000,"clubName":"Реал Мадрид"}],"positionGroup":"MF"},{"id":"seed-педри","name":"Педри","position":"Центральный полузащитник","age":23,"nationality":["Испания"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":150000000,"previousValue":140000000,"history":[{"date":"2024-09-01","value":142400000,"clubName":"Барселона"},{"date":"2024-10-01","value":142100000,"clubName":"Барселона"},{"date":"2024-11-01","value":143200000,"clubName":"Барселона"},{"date":"2024-12-01","value":137250000,"clubName":"Барселона"},{"date":"2025-01-01","value":142800000,"clubName":"Барселона"},{"date":"2025-02-01","value":138650000,"clubName":"Барселона"},{"date":"2025-03-01","value":144000000,"clubName":"Барселона"},{"date":"2025-04-01","value":139900000,"clubName":"Барселона"},{"date":"2025-05-01","value":143750000,"clubName":"Барселона"},{"date":"2025-06-01","value":146350000,"clubName":"Барселона"},{"date":"2025-07-01","value":142700000,"clubName":"Барселона"},{"date":"2025-08-01","value":145350000,"clubName":"Барселона"},{"date":"2025-09-01","value":147350000,"clubName":"Барселона"},{"date":"2025-10-01","value":148300000,"clubName":"Барселона"},{"date":"2025-11-01","value":143650000,"clubName":"Барселона"},{"date":"2025-12-01","value":149950000,"clubName":"Барселона"},{"date":"2026-01-01","value":149400000,"clubName":"Барселона"},{"date":"2026-02-01","value":148350000,"clubName":"Барселона"},{"date":"2026-03-01","value":146050000,"clubName":"Барселона"},{"date":"2026-04-01","value":147300000,"clubName":"Барселона"},{"date":"2026-05-01","value":150450000,"clubName":"Барселона"},{"date":"2026-06-01","value":153450000,"clubName":"Барселона"},{"date":"2026-07-01","value":148550000,"clubName":"Барселона"},{"date":"2026-08-25","value":150000000,"clubName":"Барселона"}],"positionGroup":"MF"},{"id":"seed-винисиус-жуниор","name":"Винисиус Жуниор","position":"Левый вингер","age":26,"nationality":["Бразилия"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":140000000,"previousValue":170000000,"history":[{"date":"2024-09-01","value":167700000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":171600000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":173500000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":164750000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":164450000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":168250000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":161350000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":167350000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":164100000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":158200000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":161650000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":156750000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":155050000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":156200000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":146250000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":152050000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":144400000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":148450000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":145250000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":140800000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":142200000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":136500000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":140200000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":140000000,"clubName":"Реал Мадрид"}],"positionGroup":"FW"},{"id":"seed-витинья","name":"Витинья","position":"Опорный полузащитник","age":26,"nationality":["Португалия"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":140000000,"previousValue":90000000,"history":[{"date":"2024-09-01","value":89300000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":87650000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":90100000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":94100000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":96550000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":93350000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":101450000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":98350000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":102650000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":109750000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":109100000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":110150000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":116150000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":119050000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":121300000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":125500000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":129450000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":131900000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":133800000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":136150000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":139450000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":140150000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":140600000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":140000000,"clubName":"ПСЖ"}],"positionGroup":"MF"},{"id":"seed-хвича-кварацхелия","name":"Хвича Кварацхелия","position":"Левый вингер","age":25,"nationality":["Грузия"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":140000000,"previousValue":100000000,"history":[{"date":"2024-09-01","value":98600000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":100250000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":98100000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":101150000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":102300000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":105650000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":106250000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":109900000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":111300000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":110200000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":119400000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":119000000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":119950000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":122800000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":126100000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":132000000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":130450000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":135500000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":132850000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":135000000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":140900000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":139950000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":136600000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":140000000,"clubName":"ПСЖ"}],"positionGroup":"FW"},{"id":"seed-жоау-невеш","name":"Жоау Невеш","position":"Центральный полузащитник","age":22,"nationality":["Португалия"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":140000000,"previousValue":110000000,"history":[{"date":"2024-09-01","value":111250000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":111450000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":112950000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":111500000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":115750000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":110700000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":115100000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":115700000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":119350000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":123500000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":119450000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":126850000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":128550000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":125800000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":130250000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":133250000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":133950000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":132000000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":135100000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":140250000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":135900000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":141750000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":140250000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":140000000,"clubName":"ПСЖ"}],"positionGroup":"MF"},{"id":"seed-деклан-райс","name":"Деклан Райс","position":"Центральный полузащитник","age":27,"nationality":["Англия"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":120000000,"previousValue":120000000,"history":[{"date":"2024-09-01","value":117400000,"clubName":"Арсенал"},{"date":"2024-10-01","value":120250000,"clubName":"Арсенал"},{"date":"2024-11-01","value":121550000,"clubName":"Арсенал"},{"date":"2024-12-01","value":121700000,"clubName":"Арсенал"},{"date":"2025-01-01","value":122500000,"clubName":"Арсенал"},{"date":"2025-02-01","value":122550000,"clubName":"Арсенал"},{"date":"2025-03-01","value":119500000,"clubName":"Арсенал"},{"date":"2025-04-01","value":119650000,"clubName":"Арсенал"},{"date":"2025-05-01","value":119850000,"clubName":"Арсенал"},{"date":"2025-06-01","value":122750000,"clubName":"Арсенал"},{"date":"2025-07-01","value":117050000,"clubName":"Арсенал"},{"date":"2025-08-01","value":117050000,"clubName":"Арсенал"},{"date":"2025-09-01","value":120950000,"clubName":"Арсенал"},{"date":"2025-10-01","value":118350000,"clubName":"Арсенал"},{"date":"2025-11-01","value":120400000,"clubName":"Арсенал"},{"date":"2025-12-01","value":119950000,"clubName":"Арсенал"},{"date":"2026-01-01","value":121600000,"clubName":"Арсенал"},{"date":"2026-02-01","value":117400000,"clubName":"Арсенал"},{"date":"2026-03-01","value":120550000,"clubName":"Арсенал"},{"date":"2026-04-01","value":121600000,"clubName":"Арсенал"},{"date":"2026-05-01","value":121700000,"clubName":"Арсенал"},{"date":"2026-06-01","value":120650000,"clubName":"Арсенал"},{"date":"2026-07-01","value":120500000,"clubName":"Арсенал"},{"date":"2026-08-25","value":120000000,"clubName":"Арсенал"}],"positionGroup":"MF"},{"id":"seed-хулиан-альварес","name":"Хулиан Альварес","position":"Нападающий","age":26,"nationality":["Аргентина"],"clubId":"13","clubName":"Атлетико Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":120000000,"previousValue":90000000,"history":[{"date":"2024-09-01","value":87400000,"clubName":"Атлетико Мадрид"},{"date":"2024-10-01","value":90100000,"clubName":"Атлетико Мадрид"},{"date":"2024-11-01","value":90650000,"clubName":"Атлетико Мадрид"},{"date":"2024-12-01","value":88750000,"clubName":"Атлетико Мадрид"},{"date":"2025-01-01","value":93550000,"clubName":"Атлетико Мадрид"},{"date":"2025-02-01","value":94700000,"clubName":"Атлетико Мадрид"},{"date":"2025-03-01","value":93100000,"clubName":"Атлетико Мадрид"},{"date":"2025-04-01","value":99550000,"clubName":"Атлетико Мадрид"},{"date":"2025-05-01","value":98450000,"clubName":"Атлетико Мадрид"},{"date":"2025-06-01","value":99850000,"clubName":"Атлетико Мадрид"},{"date":"2025-07-01","value":103200000,"clubName":"Атлетико Мадрид"},{"date":"2025-08-01","value":101500000,"clubName":"Атлетико Мадрид"},{"date":"2025-09-01","value":107000000,"clubName":"Атлетико Мадрид"},{"date":"2025-10-01","value":106750000,"clubName":"Атлетико Мадрид"},{"date":"2025-11-01","value":107500000,"clubName":"Атлетико Мадрид"},{"date":"2025-12-01","value":111700000,"clubName":"Атлетико Мадрид"},{"date":"2026-01-01","value":111150000,"clubName":"Атлетико Мадрид"},{"date":"2026-02-01","value":113100000,"clubName":"Атлетико Мадрид"},{"date":"2026-03-01","value":113750000,"clubName":"Атлетико Мадрид"},{"date":"2026-04-01","value":118650000,"clubName":"Атлетико Мадрид"},{"date":"2026-05-01","value":121600000,"clubName":"Атлетико Мадрид"},{"date":"2026-06-01","value":116600000,"clubName":"Атлетико Мадрид"},{"date":"2026-07-01","value":117050000,"clubName":"Атлетико Мадрид"},{"date":"2026-08-25","value":120000000,"clubName":"Атлетико Мадрид"}],"positionGroup":"FW"},{"id":"seed-дезире-дуэ","name":"Дезире Дуэ","position":"Правый вингер","age":21,"nationality":["Франция"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":120000000,"previousValue":70000000,"history":[{"date":"2024-09-01","value":67300000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":72050000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":72500000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":69500000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":72850000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":75500000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":76350000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":78750000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":82750000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":86500000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":92450000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":95500000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":93800000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":99450000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":105850000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":107350000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":105950000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":112850000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":116700000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":118050000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":117800000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":119500000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":119050000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":120000000,"clubName":"ПСЖ"}],"positionGroup":"FW"},{"id":"seed-букайо-сака","name":"Букайо Сака","position":"Правый вингер","age":25,"nationality":["Англия"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":110000000,"previousValue":130000000,"history":[{"date":"2024-09-01","value":127000000,"clubName":"Арсенал"},{"date":"2024-10-01","value":128150000,"clubName":"Арсенал"},{"date":"2024-11-01","value":128050000,"clubName":"Арсенал"},{"date":"2024-12-01","value":130500000,"clubName":"Арсенал"},{"date":"2025-01-01","value":128200000,"clubName":"Арсенал"},{"date":"2025-02-01","value":126450000,"clubName":"Арсенал"},{"date":"2025-03-01","value":124850000,"clubName":"Арсенал"},{"date":"2025-04-01","value":124450000,"clubName":"Арсенал"},{"date":"2025-05-01","value":124050000,"clubName":"Арсенал"},{"date":"2025-06-01","value":121550000,"clubName":"Арсенал"},{"date":"2025-07-01","value":119500000,"clubName":"Арсенал"},{"date":"2025-08-01","value":121150000,"clubName":"Арсенал"},{"date":"2025-09-01","value":120350000,"clubName":"Арсенал"},{"date":"2025-10-01","value":117650000,"clubName":"Арсенал"},{"date":"2025-11-01","value":119150000,"clubName":"Арсенал"},{"date":"2025-12-01","value":113850000,"clubName":"Арсенал"},{"date":"2026-01-01","value":115850000,"clubName":"Арсенал"},{"date":"2026-02-01","value":115450000,"clubName":"Арсенал"},{"date":"2026-03-01","value":114700000,"clubName":"Арсенал"},{"date":"2026-04-01","value":113150000,"clubName":"Арсенал"},{"date":"2026-05-01","value":114000000,"clubName":"Арсенал"},{"date":"2026-06-01","value":110050000,"clubName":"Арсенал"},{"date":"2026-07-01","value":112250000,"clubName":"Арсенал"},{"date":"2026-08-25","value":110000000,"clubName":"Арсенал"}],"positionGroup":"FW"},{"id":"seed-морган-роджерс","name":"Морган Роджерс","position":"Атакующий полузащитник","age":24,"nationality":["Англия"],"clubId":"631","clubName":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":110000000,"previousValue":55000000,"history":[{"date":"2024-09-01","value":57600000,"clubName":"Челси"},{"date":"2024-10-01","value":55900000,"clubName":"Челси"},{"date":"2024-11-01","value":56800000,"clubName":"Челси"},{"date":"2024-12-01","value":55700000,"clubName":"Челси"},{"date":"2025-01-01","value":62150000,"clubName":"Челси"},{"date":"2025-02-01","value":60700000,"clubName":"Челси"},{"date":"2025-03-01","value":63500000,"clubName":"Челси"},{"date":"2025-04-01","value":68650000,"clubName":"Челси"},{"date":"2025-05-01","value":72650000,"clubName":"Челси"},{"date":"2025-06-01","value":76350000,"clubName":"Челси"},{"date":"2025-07-01","value":74700000,"clubName":"Челси"},{"date":"2025-08-01","value":83200000,"clubName":"Челси"},{"date":"2025-09-01","value":84550000,"clubName":"Челси"},{"date":"2025-10-01","value":88200000,"clubName":"Челси"},{"date":"2025-11-01","value":89050000,"clubName":"Челси"},{"date":"2025-12-01","value":95400000,"clubName":"Челси"},{"date":"2026-01-01","value":99500000,"clubName":"Челси"},{"date":"2026-02-01","value":101000000,"clubName":"Челси"},{"date":"2026-03-01","value":103250000,"clubName":"Челси"},{"date":"2026-04-01","value":104300000,"clubName":"Челси"},{"date":"2026-05-01","value":105350000,"clubName":"Челси"},{"date":"2026-06-01","value":107300000,"clubName":"Челси"},{"date":"2026-07-01","value":111250000,"clubName":"Челси"},{"date":"2026-08-25","value":110000000,"clubName":"Челси"}],"positionGroup":"MF"},{"id":"seed-эллиот-андерсон","name":"Эллиот Андерсон","position":"Центральный полузащитник","age":23,"nationality":["Англия"],"clubId":"281","clubName":"Манчестер Сити","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":110000000,"previousValue":45000000,"history":[{"date":"2024-09-01","value":47200000,"clubName":"Манчестер Сити"},{"date":"2024-10-01","value":44050000,"clubName":"Манчестер Сити"},{"date":"2024-11-01","value":45650000,"clubName":"Манчестер Сити"},{"date":"2024-12-01","value":49150000,"clubName":"Манчестер Сити"},{"date":"2025-01-01","value":52100000,"clubName":"Манчестер Сити"},{"date":"2025-02-01","value":53050000,"clubName":"Манчестер Сити"},{"date":"2025-03-01","value":54400000,"clubName":"Манчестер Сити"},{"date":"2025-04-01","value":56950000,"clubName":"Манчестер Сити"},{"date":"2025-05-01","value":64700000,"clubName":"Манчестер Сити"},{"date":"2025-06-01","value":64900000,"clubName":"Манчестер Сити"},{"date":"2025-07-01","value":70850000,"clubName":"Манчестер Сити"},{"date":"2025-08-01","value":73550000,"clubName":"Манчестер Сити"},{"date":"2025-09-01","value":78950000,"clubName":"Манчестер Сити"},{"date":"2025-10-01","value":82150000,"clubName":"Манчестер Сити"},{"date":"2025-11-01","value":85400000,"clubName":"Манчестер Сити"},{"date":"2025-12-01","value":93050000,"clubName":"Манчестер Сити"},{"date":"2026-01-01","value":93400000,"clubName":"Манчестер Сити"},{"date":"2026-02-01","value":101100000,"clubName":"Манчестер Сити"},{"date":"2026-03-01","value":99900000,"clubName":"Манчестер Сити"},{"date":"2026-04-01","value":102850000,"clubName":"Манчестер Сити"},{"date":"2026-05-01","value":105350000,"clubName":"Манчестер Сити"},{"date":"2026-06-01","value":107950000,"clubName":"Манчестер Сити"},{"date":"2026-07-01","value":107000000,"clubName":"Манчестер Сити"},{"date":"2026-08-25","value":110000000,"clubName":"Манчестер Сити"}],"positionGroup":"MF"},{"id":"seed-усман-дембеле","name":"Усман Дембеле","position":"Нападающий","age":29,"nationality":["Франция"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":100000000,"previousValue":90000000,"history":[{"date":"2024-09-01","value":89650000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":88200000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":89500000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":89400000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":88850000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":89150000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":93300000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":91900000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":91600000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":93600000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":93700000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":93350000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":96850000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":93800000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":99100000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":99600000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":98750000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":100300000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":100750000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":99100000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":99650000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":97350000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":100950000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":100000000,"clubName":"ПСЖ"}],"positionGroup":"FW"},{"id":"seed-доминик-собослаи","name":"Доминик Собослаи","position":"Атакующий полузащитник","age":25,"nationality":["Венгрия"],"clubId":"31","clubName":"Ливерпуль","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":75000000,"history":[{"date":"2024-09-01","value":73750000,"clubName":"Ливерпуль"},{"date":"2024-10-01","value":76850000,"clubName":"Ливерпуль"},{"date":"2024-11-01","value":76500000,"clubName":"Ливерпуль"},{"date":"2024-12-01","value":74050000,"clubName":"Ливерпуль"},{"date":"2025-01-01","value":74800000,"clubName":"Ливерпуль"},{"date":"2025-02-01","value":79650000,"clubName":"Ливерпуль"},{"date":"2025-03-01","value":81500000,"clubName":"Ливерпуль"},{"date":"2025-04-01","value":82450000,"clubName":"Ливерпуль"},{"date":"2025-05-01","value":82100000,"clubName":"Ливерпуль"},{"date":"2025-06-01","value":81350000,"clubName":"Ливерпуль"},{"date":"2025-07-01","value":83700000,"clubName":"Ливерпуль"},{"date":"2025-08-01","value":87300000,"clubName":"Ливерпуль"},{"date":"2025-09-01","value":86550000,"clubName":"Ливерпуль"},{"date":"2025-10-01","value":88450000,"clubName":"Ливерпуль"},{"date":"2025-11-01","value":92400000,"clubName":"Ливерпуль"},{"date":"2025-12-01","value":94500000,"clubName":"Ливерпуль"},{"date":"2026-01-01","value":96250000,"clubName":"Ливерпуль"},{"date":"2026-02-01","value":93400000,"clubName":"Ливерпуль"},{"date":"2026-03-01","value":97750000,"clubName":"Ливерпуль"},{"date":"2026-04-01","value":96700000,"clubName":"Ливерпуль"},{"date":"2026-05-01","value":96750000,"clubName":"Ливерпуль"},{"date":"2026-06-01","value":99550000,"clubName":"Ливерпуль"},{"date":"2026-07-01","value":101600000,"clubName":"Ливерпуль"},{"date":"2026-08-25","value":100000000,"clubName":"Ливерпуль"}],"positionGroup":"MF"},{"id":"seed-уильям-салиба","name":"Уильям Салиба","position":"Центральный защитник","age":25,"nationality":["Франция"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":80000000,"history":[{"date":"2024-09-01","value":77550000,"clubName":"Арсенал"},{"date":"2024-10-01","value":78400000,"clubName":"Арсенал"},{"date":"2024-11-01","value":79750000,"clubName":"Арсенал"},{"date":"2024-12-01","value":79450000,"clubName":"Арсенал"},{"date":"2025-01-01","value":79300000,"clubName":"Арсенал"},{"date":"2025-02-01","value":80200000,"clubName":"Арсенал"},{"date":"2025-03-01","value":82950000,"clubName":"Арсенал"},{"date":"2025-04-01","value":81950000,"clubName":"Арсенал"},{"date":"2025-05-01","value":84150000,"clubName":"Арсенал"},{"date":"2025-06-01","value":88400000,"clubName":"Арсенал"},{"date":"2025-07-01","value":87450000,"clubName":"Арсенал"},{"date":"2025-08-01","value":88850000,"clubName":"Арсенал"},{"date":"2025-09-01","value":89500000,"clubName":"Арсенал"},{"date":"2025-10-01","value":89800000,"clubName":"Арсенал"},{"date":"2025-11-01","value":94850000,"clubName":"Арсенал"},{"date":"2025-12-01","value":92600000,"clubName":"Арсенал"},{"date":"2026-01-01","value":96550000,"clubName":"Арсенал"},{"date":"2026-02-01","value":99100000,"clubName":"Арсенал"},{"date":"2026-03-01","value":98650000,"clubName":"Арсенал"},{"date":"2026-04-01","value":99200000,"clubName":"Арсенал"},{"date":"2026-05-01","value":99650000,"clubName":"Арсенал"},{"date":"2026-06-01","value":98400000,"clubName":"Арсенал"},{"date":"2026-07-01","value":101150000,"clubName":"Арсенал"},{"date":"2026-08-25","value":100000000,"clubName":"Арсенал"}],"positionGroup":"DF"},{"id":"seed-коул-палмер","name":"Коул Палмер","position":"Атакующий полузащитник","age":24,"nationality":["Англия"],"clubId":"631","clubName":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":130000000,"history":[{"date":"2024-09-01","value":128250000,"clubName":"Челси"},{"date":"2024-10-01","value":127850000,"clubName":"Челси"},{"date":"2024-11-01","value":127950000,"clubName":"Челси"},{"date":"2024-12-01","value":126050000,"clubName":"Челси"},{"date":"2025-01-01","value":125350000,"clubName":"Челси"},{"date":"2025-02-01","value":128100000,"clubName":"Челси"},{"date":"2025-03-01","value":122350000,"clubName":"Челси"},{"date":"2025-04-01","value":122900000,"clubName":"Челси"},{"date":"2025-05-01","value":122700000,"clubName":"Челси"},{"date":"2025-06-01","value":119350000,"clubName":"Челси"},{"date":"2025-07-01","value":118350000,"clubName":"Челси"},{"date":"2025-08-01","value":117750000,"clubName":"Челси"},{"date":"2025-09-01","value":111450000,"clubName":"Челси"},{"date":"2025-10-01","value":110350000,"clubName":"Челси"},{"date":"2025-11-01","value":106950000,"clubName":"Челси"},{"date":"2025-12-01","value":106150000,"clubName":"Челси"},{"date":"2026-01-01","value":107400000,"clubName":"Челси"},{"date":"2026-02-01","value":107300000,"clubName":"Челси"},{"date":"2026-03-01","value":103150000,"clubName":"Челси"},{"date":"2026-04-01","value":99800000,"clubName":"Челси"},{"date":"2026-05-01","value":100450000,"clubName":"Челси"},{"date":"2026-06-01","value":100550000,"clubName":"Челси"},{"date":"2026-07-01","value":98100000,"clubName":"Челси"},{"date":"2026-08-25","value":100000000,"clubName":"Челси"}],"positionGroup":"MF"},{"id":"seed-джамал-мусиала","name":"Джамал Мусиала","position":"Атакующий полузащитник","age":23,"nationality":["Германия"],"clubId":"27","clubName":"Бавария","competitionId":"L1","competitionName":"Бундеслига","marketValue":100000000,"previousValue":140000000,"history":[{"date":"2024-09-01","value":138900000,"clubName":"Бавария"},{"date":"2024-10-01","value":137900000,"clubName":"Бавария"},{"date":"2024-11-01","value":136550000,"clubName":"Бавария"},{"date":"2024-12-01","value":139250000,"clubName":"Бавария"},{"date":"2025-01-01","value":138400000,"clubName":"Бавария"},{"date":"2025-02-01","value":138350000,"clubName":"Бавария"},{"date":"2025-03-01","value":135050000,"clubName":"Бавария"},{"date":"2025-04-01","value":130400000,"clubName":"Бавария"},{"date":"2025-05-01","value":127350000,"clubName":"Бавария"},{"date":"2025-06-01","value":128650000,"clubName":"Бавария"},{"date":"2025-07-01","value":122100000,"clubName":"Бавария"},{"date":"2025-08-01","value":124750000,"clubName":"Бавария"},{"date":"2025-09-01","value":122050000,"clubName":"Бавария"},{"date":"2025-10-01","value":113550000,"clubName":"Бавария"},{"date":"2025-11-01","value":111500000,"clubName":"Бавария"},{"date":"2025-12-01","value":113650000,"clubName":"Бавария"},{"date":"2026-01-01","value":107950000,"clubName":"Бавария"},{"date":"2026-02-01","value":106300000,"clubName":"Бавария"},{"date":"2026-03-01","value":103850000,"clubName":"Бавария"},{"date":"2026-04-01","value":100450000,"clubName":"Бавария"},{"date":"2026-05-01","value":104400000,"clubName":"Бавария"},{"date":"2026-06-01","value":102600000,"clubName":"Бавария"},{"date":"2026-07-01","value":103150000,"clubName":"Бавария"},{"date":"2026-08-25","value":100000000,"clubName":"Бавария"}],"positionGroup":"MF"},{"id":"seed-флориан-виртц","name":"Флориан Виртц","position":"Атакующий полузащитник","age":23,"nationality":["Германия"],"clubId":"31","clubName":"Ливерпуль","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":130000000,"history":[{"date":"2024-09-01","value":126950000,"clubName":"Ливерпуль"},{"date":"2024-10-01","value":129400000,"clubName":"Ливерпуль"},{"date":"2024-11-01","value":127450000,"clubName":"Ливерпуль"},{"date":"2024-12-01","value":129850000,"clubName":"Ливерпуль"},{"date":"2025-01-01","value":126650000,"clubName":"Ливерпуль"},{"date":"2025-02-01","value":128250000,"clubName":"Ливерпуль"},{"date":"2025-03-01","value":123550000,"clubName":"Ливерпуль"},{"date":"2025-04-01","value":121250000,"clubName":"Ливерпуль"},{"date":"2025-05-01","value":123600000,"clubName":"Ливерпуль"},{"date":"2025-06-01","value":122700000,"clubName":"Ливерпуль"},{"date":"2025-07-01","value":115050000,"clubName":"Ливерпуль"},{"date":"2025-08-01","value":118700000,"clubName":"Ливерпуль"},{"date":"2025-09-01","value":113950000,"clubName":"Ливерпуль"},{"date":"2025-10-01","value":110900000,"clubName":"Ливерпуль"},{"date":"2025-11-01","value":107950000,"clubName":"Ливерпуль"},{"date":"2025-12-01","value":107450000,"clubName":"Ливерпуль"},{"date":"2026-01-01","value":106750000,"clubName":"Ливерпуль"},{"date":"2026-02-01","value":108300000,"clubName":"Ливерпуль"},{"date":"2026-03-01","value":106500000,"clubName":"Ливерпуль"},{"date":"2026-04-01","value":100900000,"clubName":"Ливерпуль"},{"date":"2026-05-01","value":99850000,"clubName":"Ливерпуль"},{"date":"2026-06-01","value":99750000,"clubName":"Ливерпуль"},{"date":"2026-07-01","value":103150000,"clubName":"Ливерпуль"},{"date":"2026-08-25","value":100000000,"clubName":"Ливерпуль"}],"positionGroup":"MF"},{"id":"seed-фермин-лопес","name":"Фермин Лопес","position":"Атакующий полузащитник","age":23,"nationality":["Испания"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":100000000,"previousValue":60000000,"history":[{"date":"2024-09-01","value":60100000,"clubName":"Барселона"},{"date":"2024-10-01","value":61100000,"clubName":"Барселона"},{"date":"2024-11-01","value":58800000,"clubName":"Барселона"},{"date":"2024-12-01","value":63550000,"clubName":"Барселона"},{"date":"2025-01-01","value":64050000,"clubName":"Барселона"},{"date":"2025-02-01","value":63800000,"clubName":"Барселона"},{"date":"2025-03-01","value":68800000,"clubName":"Барселона"},{"date":"2025-04-01","value":69100000,"clubName":"Барселона"},{"date":"2025-05-01","value":70100000,"clubName":"Барселона"},{"date":"2025-06-01","value":74450000,"clubName":"Барселона"},{"date":"2025-07-01","value":74500000,"clubName":"Барселона"},{"date":"2025-08-01","value":80050000,"clubName":"Барселона"},{"date":"2025-09-01","value":78850000,"clubName":"Барселона"},{"date":"2025-10-01","value":84400000,"clubName":"Барселона"},{"date":"2025-11-01","value":88600000,"clubName":"Барселона"},{"date":"2025-12-01","value":86800000,"clubName":"Барселона"},{"date":"2026-01-01","value":90900000,"clubName":"Барселона"},{"date":"2026-02-01","value":95050000,"clubName":"Барселона"},{"date":"2026-03-01","value":94150000,"clubName":"Барселона"},{"date":"2026-04-01","value":98750000,"clubName":"Барселона"},{"date":"2026-05-01","value":99650000,"clubName":"Барселона"},{"date":"2026-06-01","value":97400000,"clubName":"Барселона"},{"date":"2026-07-01","value":99300000,"clubName":"Барселона"},{"date":"2026-08-25","value":100000000,"clubName":"Барселона"}],"positionGroup":"MF"},{"id":"seed-энсо-фернандес","name":"Энсо Фернандес","position":"Центральный полузащитник","age":25,"nationality":["Аргентина"],"clubId":"631","clubName":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":75000000,"history":[{"date":"2024-09-01","value":73450000,"clubName":"Челси"},{"date":"2024-10-01","value":76050000,"clubName":"Челси"},{"date":"2024-11-01","value":77100000,"clubName":"Челси"},{"date":"2024-12-01","value":75950000,"clubName":"Челси"},{"date":"2025-01-01","value":78700000,"clubName":"Челси"},{"date":"2025-02-01","value":79550000,"clubName":"Челси"},{"date":"2025-03-01","value":81000000,"clubName":"Челси"},{"date":"2025-04-01","value":82100000,"clubName":"Челси"},{"date":"2025-05-01","value":83750000,"clubName":"Челси"},{"date":"2025-06-01","value":83650000,"clubName":"Челси"},{"date":"2025-07-01","value":86050000,"clubName":"Челси"},{"date":"2025-08-01","value":86200000,"clubName":"Челси"},{"date":"2025-09-01","value":88150000,"clubName":"Челси"},{"date":"2025-10-01","value":89500000,"clubName":"Челси"},{"date":"2025-11-01","value":90300000,"clubName":"Челси"},{"date":"2025-12-01","value":92550000,"clubName":"Челси"},{"date":"2026-01-01","value":92500000,"clubName":"Челси"},{"date":"2026-02-01","value":94400000,"clubName":"Челси"},{"date":"2026-03-01","value":95400000,"clubName":"Челси"},{"date":"2026-04-01","value":96550000,"clubName":"Челси"},{"date":"2026-05-01","value":97450000,"clubName":"Челси"},{"date":"2026-06-01","value":100850000,"clubName":"Челси"},{"date":"2026-07-01","value":98650000,"clubName":"Челси"},{"date":"2026-08-25","value":100000000,"clubName":"Челси"}],"positionGroup":"MF"},{"id":"seed-мойзес-кайседо","name":"Мойзес Кайседо","position":"Опорный полузащитник","age":24,"nationality":["Эквадор"],"clubId":"631","clubName":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":100000000,"previousValue":90000000,"history":[{"date":"2024-09-01","value":87600000,"clubName":"Челси"},{"date":"2024-10-01","value":90300000,"clubName":"Челси"},{"date":"2024-11-01","value":89550000,"clubName":"Челси"},{"date":"2024-12-01","value":88950000,"clubName":"Челси"},{"date":"2025-01-01","value":92100000,"clubName":"Челси"},{"date":"2025-02-01","value":93500000,"clubName":"Челси"},{"date":"2025-03-01","value":90500000,"clubName":"Челси"},{"date":"2025-04-01","value":91550000,"clubName":"Челси"},{"date":"2025-05-01","value":94800000,"clubName":"Челси"},{"date":"2025-06-01","value":94650000,"clubName":"Челси"},{"date":"2025-07-01","value":95150000,"clubName":"Челси"},{"date":"2025-08-01","value":94000000,"clubName":"Челси"},{"date":"2025-09-01","value":96150000,"clubName":"Челси"},{"date":"2025-10-01","value":96950000,"clubName":"Челси"},{"date":"2025-11-01","value":97100000,"clubName":"Челси"},{"date":"2025-12-01","value":98200000,"clubName":"Челси"},{"date":"2026-01-01","value":96150000,"clubName":"Челси"},{"date":"2026-02-01","value":96600000,"clubName":"Челси"},{"date":"2026-03-01","value":100500000,"clubName":"Челси"},{"date":"2026-04-01","value":101200000,"clubName":"Челси"},{"date":"2026-05-01","value":101400000,"clubName":"Челси"},{"date":"2026-06-01","value":101200000,"clubName":"Челси"},{"date":"2026-07-01","value":101550000,"clubName":"Челси"},{"date":"2026-08-25","value":100000000,"clubName":"Челси"}],"positionGroup":"MF"},{"id":"seed-пау-кубарси","name":"Пау Кубарси","position":"Центральный защитник","age":19,"nationality":["Испания"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":100000000,"previousValue":80000000,"history":[{"date":"2024-09-01","value":81550000,"clubName":"Барселона"},{"date":"2024-10-01","value":80950000,"clubName":"Барселона"},{"date":"2024-11-01","value":81500000,"clubName":"Барселона"},{"date":"2024-12-01","value":81250000,"clubName":"Барселона"},{"date":"2025-01-01","value":80700000,"clubName":"Барселона"},{"date":"2025-02-01","value":83100000,"clubName":"Барселона"},{"date":"2025-03-01","value":83050000,"clubName":"Барселона"},{"date":"2025-04-01","value":86350000,"clubName":"Барселона"},{"date":"2025-05-01","value":83700000,"clubName":"Барселона"},{"date":"2025-06-01","value":86500000,"clubName":"Барселона"},{"date":"2025-07-01","value":90150000,"clubName":"Барселона"},{"date":"2025-08-01","value":89000000,"clubName":"Барселона"},{"date":"2025-09-01","value":90100000,"clubName":"Барселона"},{"date":"2025-10-01","value":93700000,"clubName":"Барселона"},{"date":"2025-11-01","value":91900000,"clubName":"Барселона"},{"date":"2025-12-01","value":94750000,"clubName":"Барселона"},{"date":"2026-01-01","value":96750000,"clubName":"Барселона"},{"date":"2026-02-01","value":99100000,"clubName":"Барселона"},{"date":"2026-03-01","value":99950000,"clubName":"Барселона"},{"date":"2026-04-01","value":98850000,"clubName":"Барселона"},{"date":"2026-05-01","value":100900000,"clubName":"Барселона"},{"date":"2026-06-01","value":99050000,"clubName":"Барселона"},{"date":"2026-07-01","value":99550000,"clubName":"Барселона"},{"date":"2026-08-25","value":100000000,"clubName":"Барселона"}],"positionGroup":"DF"},{"id":"seed-федерико-вальверде","name":"Федерико Вальверде","position":"Центральный полузащитник","age":28,"nationality":["Уругвай"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":90000000,"previousValue":130000000,"history":[{"date":"2024-09-01","value":129200000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":128100000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":127000000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":129000000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":125250000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":126600000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":121700000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":123600000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":119600000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":113800000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":111450000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":111350000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":111500000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":109150000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":105850000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":103300000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":96500000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":94950000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":97850000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":96250000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":88850000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":90400000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":93000000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":90000000,"clubName":"Реал Мадрид"}],"positionGroup":"MF"},{"id":"seed-райан-шерки","name":"Райан Шерки","position":"Атакующий полузащитник","age":23,"nationality":["Франция"],"clubId":"281","clubName":"Манчестер Сити","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":90000000,"previousValue":45000000,"history":[{"date":"2024-09-01","value":43050000,"clubName":"Манчестер Сити"},{"date":"2024-10-01","value":46400000,"clubName":"Манчестер Сити"},{"date":"2024-11-01","value":47800000,"clubName":"Манчестер Сити"},{"date":"2024-12-01","value":49050000,"clubName":"Манчестер Сити"},{"date":"2025-01-01","value":50300000,"clubName":"Манчестер Сити"},{"date":"2025-02-01","value":49150000,"clubName":"Манчестер Сити"},{"date":"2025-03-01","value":54200000,"clubName":"Манчестер Сити"},{"date":"2025-04-01","value":54900000,"clubName":"Манчестер Сити"},{"date":"2025-05-01","value":56800000,"clubName":"Манчестер Сити"},{"date":"2025-06-01","value":62450000,"clubName":"Манчестер Сити"},{"date":"2025-07-01","value":62250000,"clubName":"Манчестер Сити"},{"date":"2025-08-01","value":67700000,"clubName":"Манчестер Сити"},{"date":"2025-09-01","value":67750000,"clubName":"Манчестер Сити"},{"date":"2025-10-01","value":70150000,"clubName":"Манчестер Сити"},{"date":"2025-11-01","value":72500000,"clubName":"Манчестер Сити"},{"date":"2025-12-01","value":76100000,"clubName":"Манчестер Сити"},{"date":"2026-01-01","value":81800000,"clubName":"Манчестер Сити"},{"date":"2026-02-01","value":84100000,"clubName":"Манчестер Сити"},{"date":"2026-03-01","value":83050000,"clubName":"Манчестер Сити"},{"date":"2026-04-01","value":87300000,"clubName":"Манчестер Сити"},{"date":"2026-05-01","value":86150000,"clubName":"Манчестер Сити"},{"date":"2026-06-01","value":87300000,"clubName":"Манчестер Сити"},{"date":"2026-07-01","value":90800000,"clubName":"Манчестер Сити"},{"date":"2026-08-25","value":90000000,"clubName":"Манчестер Сити"}],"positionGroup":"MF"},{"id":"seed-брэдли-барколя","name":"Брэдли Барколя","position":"Левый вингер","age":24,"nationality":["Франция"],"clubId":"583","clubName":"ПСЖ","competitionId":"FR1","competitionName":"Лига 1","marketValue":90000000,"previousValue":70000000,"history":[{"date":"2024-09-01","value":69600000,"clubName":"ПСЖ"},{"date":"2024-10-01","value":70300000,"clubName":"ПСЖ"},{"date":"2024-11-01","value":70050000,"clubName":"ПСЖ"},{"date":"2024-12-01","value":72000000,"clubName":"ПСЖ"},{"date":"2025-01-01","value":69700000,"clubName":"ПСЖ"},{"date":"2025-02-01","value":71950000,"clubName":"ПСЖ"},{"date":"2025-03-01","value":75450000,"clubName":"ПСЖ"},{"date":"2025-04-01","value":75500000,"clubName":"ПСЖ"},{"date":"2025-05-01","value":74150000,"clubName":"ПСЖ"},{"date":"2025-06-01","value":75050000,"clubName":"ПСЖ"},{"date":"2025-07-01","value":78650000,"clubName":"ПСЖ"},{"date":"2025-08-01","value":79500000,"clubName":"ПСЖ"},{"date":"2025-09-01","value":80300000,"clubName":"ПСЖ"},{"date":"2025-10-01","value":81300000,"clubName":"ПСЖ"},{"date":"2025-11-01","value":84900000,"clubName":"ПСЖ"},{"date":"2025-12-01","value":83650000,"clubName":"ПСЖ"},{"date":"2026-01-01","value":84250000,"clubName":"ПСЖ"},{"date":"2026-02-01","value":84700000,"clubName":"ПСЖ"},{"date":"2026-03-01","value":85600000,"clubName":"ПСЖ"},{"date":"2026-04-01","value":87400000,"clubName":"ПСЖ"},{"date":"2026-05-01","value":88600000,"clubName":"ПСЖ"},{"date":"2026-06-01","value":91700000,"clubName":"ПСЖ"},{"date":"2026-07-01","value":88600000,"clubName":"ПСЖ"},{"date":"2026-08-25","value":90000000,"clubName":"ПСЖ"}],"positionGroup":"FW"},{"id":"seed-александар-павлович","name":"Александар Павлович","position":"Опорный полузащитник","age":22,"nationality":["Германия"],"clubId":"27","clubName":"Бавария","competitionId":"L1","competitionName":"Бундеслига","marketValue":90000000,"previousValue":45000000,"history":[{"date":"2024-09-01","value":45350000,"clubName":"Бавария"},{"date":"2024-10-01","value":44650000,"clubName":"Бавария"},{"date":"2024-11-01","value":48000000,"clubName":"Бавария"},{"date":"2024-12-01","value":46500000,"clubName":"Бавария"},{"date":"2025-01-01","value":49600000,"clubName":"Бавария"},{"date":"2025-02-01","value":51300000,"clubName":"Бавария"},{"date":"2025-03-01","value":52900000,"clubName":"Бавария"},{"date":"2025-04-01","value":54350000,"clubName":"Бавария"},{"date":"2025-05-01","value":56650000,"clubName":"Бавария"},{"date":"2025-06-01","value":61200000,"clubName":"Бавария"},{"date":"2025-07-01","value":63350000,"clubName":"Бавария"},{"date":"2025-08-01","value":65650000,"clubName":"Бавария"},{"date":"2025-09-01","value":71000000,"clubName":"Бавария"},{"date":"2025-10-01","value":72250000,"clubName":"Бавария"},{"date":"2025-11-01","value":76850000,"clubName":"Бавария"},{"date":"2025-12-01","value":78750000,"clubName":"Бавария"},{"date":"2026-01-01","value":81500000,"clubName":"Бавария"},{"date":"2026-02-01","value":81900000,"clubName":"Бавария"},{"date":"2026-03-01","value":85350000,"clubName":"Бавария"},{"date":"2026-04-01","value":85950000,"clubName":"Бавария"},{"date":"2026-05-01","value":87400000,"clubName":"Бавария"},{"date":"2026-06-01","value":90800000,"clubName":"Бавария"},{"date":"2026-07-01","value":90800000,"clubName":"Бавария"},{"date":"2026-08-25","value":90000000,"clubName":"Бавария"}],"positionGroup":"MF"},{"id":"seed-виктор-дьёкереш","name":"Виктор Дьёкереш","position":"Нападающий","age":28,"nationality":["Швеция"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":85000000,"previousValue":75000000,"history":[{"date":"2024-09-01","value":76900000,"clubName":"Арсенал"},{"date":"2024-10-01","value":74950000,"clubName":"Арсенал"},{"date":"2024-11-01","value":75900000,"clubName":"Арсенал"},{"date":"2024-12-01","value":76200000,"clubName":"Арсенал"},{"date":"2025-01-01","value":74550000,"clubName":"Арсенал"},{"date":"2025-02-01","value":77250000,"clubName":"Арсенал"},{"date":"2025-03-01","value":75000000,"clubName":"Арсенал"},{"date":"2025-04-01","value":76350000,"clubName":"Арсенал"},{"date":"2025-05-01","value":78850000,"clubName":"Арсенал"},{"date":"2025-06-01","value":77300000,"clubName":"Арсенал"},{"date":"2025-07-01","value":77350000,"clubName":"Арсенал"},{"date":"2025-08-01","value":77900000,"clubName":"Арсенал"},{"date":"2025-09-01","value":79300000,"clubName":"Арсенал"},{"date":"2025-10-01","value":83100000,"clubName":"Арсенал"},{"date":"2025-11-01","value":80200000,"clubName":"Арсенал"},{"date":"2025-12-01","value":82850000,"clubName":"Арсенал"},{"date":"2026-01-01","value":81200000,"clubName":"Арсенал"},{"date":"2026-02-01","value":85100000,"clubName":"Арсенал"},{"date":"2026-03-01","value":82500000,"clubName":"Арсенал"},{"date":"2026-04-01","value":85850000,"clubName":"Арсенал"},{"date":"2026-05-01","value":83850000,"clubName":"Арсенал"},{"date":"2026-06-01","value":83250000,"clubName":"Арсенал"},{"date":"2026-07-01","value":83650000,"clubName":"Арсенал"},{"date":"2026-08-25","value":85000000,"clubName":"Арсенал"}],"positionGroup":"FW"},{"id":"seed-александер-исак","name":"Александер Исак","position":"Нападающий","age":27,"nationality":["Швеция"],"clubId":"31","clubName":"Ливерпуль","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":85000000,"previousValue":120000000,"history":[{"date":"2024-09-01","value":120050000,"clubName":"Ливерпуль"},{"date":"2024-10-01","value":119000000,"clubName":"Ливерпуль"},{"date":"2024-11-01","value":117300000,"clubName":"Ливерпуль"},{"date":"2024-12-01","value":119300000,"clubName":"Ливерпуль"},{"date":"2025-01-01","value":117950000,"clubName":"Ливерпуль"},{"date":"2025-02-01","value":117600000,"clubName":"Ливерпуль"},{"date":"2025-03-01","value":114600000,"clubName":"Ливерпуль"},{"date":"2025-04-01","value":111200000,"clubName":"Ливерпуль"},{"date":"2025-05-01","value":111250000,"clubName":"Ливерпуль"},{"date":"2025-06-01","value":107050000,"clubName":"Ливерпуль"},{"date":"2025-07-01","value":108150000,"clubName":"Ливерпуль"},{"date":"2025-08-01","value":105600000,"clubName":"Ливерпуль"},{"date":"2025-09-01","value":100300000,"clubName":"Ливерпуль"},{"date":"2025-10-01","value":100600000,"clubName":"Ливерпуль"},{"date":"2025-11-01","value":98750000,"clubName":"Ливерпуль"},{"date":"2025-12-01","value":96350000,"clubName":"Ливерпуль"},{"date":"2026-01-01","value":94200000,"clubName":"Ливерпуль"},{"date":"2026-02-01","value":87950000,"clubName":"Ливерпуль"},{"date":"2026-03-01","value":88900000,"clubName":"Ливерпуль"},{"date":"2026-04-01","value":85900000,"clubName":"Ливерпуль"},{"date":"2026-05-01","value":84650000,"clubName":"Ливерпуль"},{"date":"2026-06-01","value":82950000,"clubName":"Ливерпуль"},{"date":"2026-07-01","value":85200000,"clubName":"Ливерпуль"},{"date":"2026-08-25","value":85000000,"clubName":"Ливерпуль"}],"positionGroup":"FW"},{"id":"seed-родри","name":"Родри","position":"Опорный полузащитник","age":30,"nationality":["Испания"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":80000000,"previousValue":110000000,"history":[{"date":"2024-09-01","value":112400000,"clubName":"Барселона"},{"date":"2024-10-01","value":110200000,"clubName":"Барселона"},{"date":"2024-11-01","value":109200000,"clubName":"Барселона"},{"date":"2024-12-01","value":107850000,"clubName":"Барселона"},{"date":"2025-01-01","value":107400000,"clubName":"Барселона"},{"date":"2025-02-01","value":103850000,"clubName":"Барселона"},{"date":"2025-03-01","value":104550000,"clubName":"Барселона"},{"date":"2025-04-01","value":102500000,"clubName":"Барселона"},{"date":"2025-05-01","value":100700000,"clubName":"Барселона"},{"date":"2025-06-01","value":98250000,"clubName":"Барселона"},{"date":"2025-07-01","value":96950000,"clubName":"Барселона"},{"date":"2025-08-01","value":95500000,"clubName":"Барселона"},{"date":"2025-09-01","value":95100000,"clubName":"Барселона"},{"date":"2025-10-01","value":93200000,"clubName":"Барселона"},{"date":"2025-11-01","value":91400000,"clubName":"Барселона"},{"date":"2025-12-01","value":88950000,"clubName":"Барселона"},{"date":"2026-01-01","value":88500000,"clubName":"Барселона"},{"date":"2026-02-01","value":84200000,"clubName":"Барселона"},{"date":"2026-03-01","value":85850000,"clubName":"Барселона"},{"date":"2026-04-01","value":83400000,"clubName":"Барселона"},{"date":"2026-05-01","value":79450000,"clubName":"Барселона"},{"date":"2026-06-01","value":82850000,"clubName":"Барселона"},{"date":"2026-07-01","value":80800000,"clubName":"Барселона"},{"date":"2026-08-25","value":80000000,"clubName":"Барселона"}],"positionGroup":"MF"},{"id":"seed-ламинэ-камара","name":"Ламинэ Камара","position":"Опорный полузащитник","age":22,"nationality":["Сенегал"],"clubId":"583b","clubName":"Марсель","competitionId":"FR1","competitionName":"Лига 1","marketValue":45000000,"previousValue":22000000,"history":[{"date":"2024-09-01","value":20950000,"clubName":"Марсель"},{"date":"2024-10-01","value":21150000,"clubName":"Марсель"},{"date":"2024-11-01","value":22950000,"clubName":"Марсель"},{"date":"2024-12-01","value":24100000,"clubName":"Марсель"},{"date":"2025-01-01","value":23500000,"clubName":"Марсель"},{"date":"2025-02-01","value":23750000,"clubName":"Марсель"},{"date":"2025-03-01","value":25400000,"clubName":"Марсель"},{"date":"2025-04-01","value":26600000,"clubName":"Марсель"},{"date":"2025-05-01","value":28350000,"clubName":"Марсель"},{"date":"2025-06-01","value":29200000,"clubName":"Марсель"},{"date":"2025-07-01","value":30450000,"clubName":"Марсель"},{"date":"2025-08-01","value":33550000,"clubName":"Марсель"},{"date":"2025-09-01","value":34750000,"clubName":"Марсель"},{"date":"2025-10-01","value":34900000,"clubName":"Марсель"},{"date":"2025-11-01","value":36850000,"clubName":"Марсель"},{"date":"2025-12-01","value":38050000,"clubName":"Марсель"},{"date":"2026-01-01","value":39050000,"clubName":"Марсель"},{"date":"2026-02-01","value":41500000,"clubName":"Марсель"},{"date":"2026-03-01","value":41300000,"clubName":"Марсель"},{"date":"2026-04-01","value":44250000,"clubName":"Марсель"},{"date":"2026-05-01","value":44300000,"clubName":"Марсель"},{"date":"2026-06-01","value":43900000,"clubName":"Марсель"},{"date":"2026-07-01","value":45150000,"clubName":"Марсель"},{"date":"2026-08-25","value":45000000,"clubName":"Марсель"}],"positionGroup":"MF"},{"id":"seed-рафаэл-леау","name":"Рафаэл Леау","position":"Левый вингер","age":27,"nationality":["Португалия"],"clubId":"5","clubName":"Милан","competitionId":"IT1","competitionName":"Серия А","marketValue":75000000,"previousValue":90000000,"history":[{"date":"2024-09-01","value":90350000,"clubName":"Милан"},{"date":"2024-10-01","value":90150000,"clubName":"Милан"},{"date":"2024-11-01","value":91100000,"clubName":"Милан"},{"date":"2024-12-01","value":87400000,"clubName":"Милан"},{"date":"2025-01-01","value":88750000,"clubName":"Милан"},{"date":"2025-02-01","value":88500000,"clubName":"Милан"},{"date":"2025-03-01","value":87550000,"clubName":"Милан"},{"date":"2025-04-01","value":88050000,"clubName":"Милан"},{"date":"2025-05-01","value":87000000,"clubName":"Милан"},{"date":"2025-06-01","value":86800000,"clubName":"Милан"},{"date":"2025-07-01","value":81900000,"clubName":"Милан"},{"date":"2025-08-01","value":82200000,"clubName":"Милан"},{"date":"2025-09-01","value":84150000,"clubName":"Милан"},{"date":"2025-10-01","value":83100000,"clubName":"Милан"},{"date":"2025-11-01","value":78650000,"clubName":"Милан"},{"date":"2025-12-01","value":79150000,"clubName":"Милан"},{"date":"2026-01-01","value":79600000,"clubName":"Милан"},{"date":"2026-02-01","value":77500000,"clubName":"Милан"},{"date":"2026-03-01","value":79000000,"clubName":"Милан"},{"date":"2026-04-01","value":74500000,"clubName":"Милан"},{"date":"2026-05-01","value":73800000,"clubName":"Милан"},{"date":"2026-06-01","value":75600000,"clubName":"Милан"},{"date":"2026-07-01","value":77000000,"clubName":"Милан"},{"date":"2026-08-25","value":75000000,"clubName":"Милан"}],"positionGroup":"FW"},{"id":"seed-николо-барелла","name":"Николо Барелла","position":"Центральный полузащитник","age":29,"nationality":["Италия"],"clubId":"46","clubName":"Интер","competitionId":"IT1","competitionName":"Серия А","marketValue":60000000,"previousValue":80000000,"history":[{"date":"2024-09-01","value":79550000,"clubName":"Интер"},{"date":"2024-10-01","value":81700000,"clubName":"Интер"},{"date":"2024-11-01","value":81000000,"clubName":"Интер"},{"date":"2024-12-01","value":80200000,"clubName":"Интер"},{"date":"2025-01-01","value":77850000,"clubName":"Интер"},{"date":"2025-02-01","value":76450000,"clubName":"Интер"},{"date":"2025-03-01","value":74850000,"clubName":"Интер"},{"date":"2025-04-01","value":74000000,"clubName":"Интер"},{"date":"2025-05-01","value":75800000,"clubName":"Интер"},{"date":"2025-06-01","value":74500000,"clubName":"Интер"},{"date":"2025-07-01","value":73450000,"clubName":"Интер"},{"date":"2025-08-01","value":71350000,"clubName":"Интер"},{"date":"2025-09-01","value":70300000,"clubName":"Интер"},{"date":"2025-10-01","value":66200000,"clubName":"Интер"},{"date":"2025-11-01","value":65700000,"clubName":"Интер"},{"date":"2025-12-01","value":63650000,"clubName":"Интер"},{"date":"2026-01-01","value":63300000,"clubName":"Интер"},{"date":"2026-02-01","value":64700000,"clubName":"Интер"},{"date":"2026-03-01","value":61850000,"clubName":"Интер"},{"date":"2026-04-01","value":60200000,"clubName":"Интер"},{"date":"2026-05-01","value":61950000,"clubName":"Интер"},{"date":"2026-06-01","value":59700000,"clubName":"Интер"},{"date":"2026-07-01","value":58900000,"clubName":"Интер"},{"date":"2026-08-25","value":60000000,"clubName":"Интер"}],"positionGroup":"MF"},{"id":"seed-кенан-йылдыз","name":"Кенан Йылдыз","position":"Атакующий полузащитник","age":21,"nationality":["Турция"],"clubId":"506","clubName":"Ювентус","competitionId":"IT1","competitionName":"Серия А","marketValue":80000000,"previousValue":45000000,"history":[{"date":"2024-09-01","value":44150000,"clubName":"Ювентус"},{"date":"2024-10-01","value":45200000,"clubName":"Ювентус"},{"date":"2024-11-01","value":45100000,"clubName":"Ювентус"},{"date":"2024-12-01","value":47650000,"clubName":"Ювентус"},{"date":"2025-01-01","value":45950000,"clubName":"Ювентус"},{"date":"2025-02-01","value":49950000,"clubName":"Ювентус"},{"date":"2025-03-01","value":51850000,"clubName":"Ювентус"},{"date":"2025-04-01","value":51100000,"clubName":"Ювентус"},{"date":"2025-05-01","value":54500000,"clubName":"Ювентус"},{"date":"2025-06-01","value":56300000,"clubName":"Ювентус"},{"date":"2025-07-01","value":60250000,"clubName":"Ювентус"},{"date":"2025-08-01","value":60250000,"clubName":"Ювентус"},{"date":"2025-09-01","value":63100000,"clubName":"Ювентус"},{"date":"2025-10-01","value":64650000,"clubName":"Ювентус"},{"date":"2025-11-01","value":68700000,"clubName":"Ювентус"},{"date":"2025-12-01","value":70600000,"clubName":"Ювентус"},{"date":"2026-01-01","value":74100000,"clubName":"Ювентус"},{"date":"2026-02-01","value":72650000,"clubName":"Ювентус"},{"date":"2026-03-01","value":74400000,"clubName":"Ювентус"},{"date":"2026-04-01","value":78000000,"clubName":"Ювентус"},{"date":"2026-05-01","value":80250000,"clubName":"Ювентус"},{"date":"2026-06-01","value":80100000,"clubName":"Ювентус"},{"date":"2026-07-01","value":78100000,"clubName":"Ювентус"},{"date":"2026-08-25","value":80000000,"clubName":"Ювентус"}],"positionGroup":"MF"},{"id":"seed-сандро-тонали","name":"Сандро Тонали","position":"Центральный полузащитник","age":26,"nationality":["Италия"],"clubId":"148","clubName":"Тоттенхэм","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":75000000,"previousValue":55000000,"history":[{"date":"2024-09-01","value":55450000,"clubName":"Тоттенхэм"},{"date":"2024-10-01","value":53250000,"clubName":"Тоттенхэм"},{"date":"2024-11-01","value":54600000,"clubName":"Тоттенхэм"},{"date":"2024-12-01","value":57700000,"clubName":"Тоттенхэм"},{"date":"2025-01-01","value":57550000,"clubName":"Тоттенхэм"},{"date":"2025-02-01","value":57950000,"clubName":"Тоттенхэм"},{"date":"2025-03-01","value":56950000,"clubName":"Тоттенхэм"},{"date":"2025-04-01","value":59950000,"clubName":"Тоттенхэм"},{"date":"2025-05-01","value":58950000,"clubName":"Тоттенхэм"},{"date":"2025-06-01","value":63000000,"clubName":"Тоттенхэм"},{"date":"2025-07-01","value":64900000,"clubName":"Тоттенхэм"},{"date":"2025-08-01","value":63850000,"clubName":"Тоттенхэм"},{"date":"2025-09-01","value":64200000,"clubName":"Тоттенхэм"},{"date":"2025-10-01","value":66050000,"clubName":"Тоттенхэм"},{"date":"2025-11-01","value":67800000,"clubName":"Тоттенхэм"},{"date":"2025-12-01","value":70050000,"clubName":"Тоттенхэм"},{"date":"2026-01-01","value":70250000,"clubName":"Тоттенхэм"},{"date":"2026-02-01","value":69800000,"clubName":"Тоттенхэм"},{"date":"2026-03-01","value":71450000,"clubName":"Тоттенхэм"},{"date":"2026-04-01","value":73600000,"clubName":"Тоттенхэм"},{"date":"2026-05-01","value":75050000,"clubName":"Тоттенхэм"},{"date":"2026-06-01","value":76350000,"clubName":"Тоттенхэм"},{"date":"2026-07-01","value":76650000,"clubName":"Тоттенхэм"},{"date":"2026-08-25","value":75000000,"clubName":"Тоттенхэм"}],"positionGroup":"MF"},{"id":"seed-бруну-гимарайнс","name":"Бруну Гимарайнс","position":"Опорный полузащитник","age":28,"nationality":["Бразилия"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":70000000,"previousValue":75000000,"history":[{"date":"2024-09-01","value":75250000,"clubName":"Арсенал"},{"date":"2024-10-01","value":76100000,"clubName":"Арсенал"},{"date":"2024-11-01","value":73600000,"clubName":"Арсенал"},{"date":"2024-12-01","value":72950000,"clubName":"Арсенал"},{"date":"2025-01-01","value":74300000,"clubName":"Арсенал"},{"date":"2025-02-01","value":72850000,"clubName":"Арсенал"},{"date":"2025-03-01","value":75200000,"clubName":"Арсенал"},{"date":"2025-04-01","value":74400000,"clubName":"Арсенал"},{"date":"2025-05-01","value":75100000,"clubName":"Арсенал"},{"date":"2025-06-01","value":73650000,"clubName":"Арсенал"},{"date":"2025-07-01","value":71500000,"clubName":"Арсенал"},{"date":"2025-08-01","value":73150000,"clubName":"Арсенал"},{"date":"2025-09-01","value":74000000,"clubName":"Арсенал"},{"date":"2025-10-01","value":71650000,"clubName":"Арсенал"},{"date":"2025-11-01","value":71250000,"clubName":"Арсенал"},{"date":"2025-12-01","value":73150000,"clubName":"Арсенал"},{"date":"2026-01-01","value":70050000,"clubName":"Арсенал"},{"date":"2026-02-01","value":70150000,"clubName":"Арсенал"},{"date":"2026-03-01","value":71200000,"clubName":"Арсенал"},{"date":"2026-04-01","value":70200000,"clubName":"Арсенал"},{"date":"2026-05-01","value":70450000,"clubName":"Арсенал"},{"date":"2026-06-01","value":71050000,"clubName":"Арсенал"},{"date":"2026-07-01","value":69500000,"clubName":"Арсенал"},{"date":"2026-08-25","value":70000000,"clubName":"Арсенал"}],"positionGroup":"MF"},{"id":"seed-матеус-фернандеш","name":"Матеус Фернандеш","position":"Центральный полузащитник","age":22,"nationality":["Португалия"],"clubId":"148","clubName":"Тоттенхэм","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":70000000,"previousValue":35000000,"history":[{"date":"2024-09-01","value":36300000,"clubName":"Тоттенхэм"},{"date":"2024-10-01","value":33650000,"clubName":"Тоттенхэм"},{"date":"2024-11-01","value":37000000,"clubName":"Тоттенхэм"},{"date":"2024-12-01","value":36050000,"clubName":"Тоттенхэм"},{"date":"2025-01-01","value":36800000,"clubName":"Тоттенхэм"},{"date":"2025-02-01","value":39100000,"clubName":"Тоттенхэм"},{"date":"2025-03-01","value":40700000,"clubName":"Тоттенхэм"},{"date":"2025-04-01","value":44100000,"clubName":"Тоттенхэм"},{"date":"2025-05-01","value":45600000,"clubName":"Тоттенхэм"},{"date":"2025-06-01","value":45800000,"clubName":"Тоттенхэм"},{"date":"2025-07-01","value":49900000,"clubName":"Тоттенхэм"},{"date":"2025-08-01","value":51750000,"clubName":"Тоттенхэм"},{"date":"2025-09-01","value":54650000,"clubName":"Тоттенхэм"},{"date":"2025-10-01","value":55600000,"clubName":"Тоттенхэм"},{"date":"2025-11-01","value":59250000,"clubName":"Тоттенхэм"},{"date":"2025-12-01","value":60250000,"clubName":"Тоттенхэм"},{"date":"2026-01-01","value":61450000,"clubName":"Тоттенхэм"},{"date":"2026-02-01","value":64350000,"clubName":"Тоттенхэм"},{"date":"2026-03-01","value":67150000,"clubName":"Тоттенхэм"},{"date":"2026-04-01","value":66400000,"clubName":"Тоттенхэм"},{"date":"2026-05-01","value":67200000,"clubName":"Тоттенхэм"},{"date":"2026-06-01","value":70000000,"clubName":"Тоттенхэм"},{"date":"2026-07-01","value":68500000,"clubName":"Тоттенхэм"},{"date":"2026-08-25","value":70000000,"clubName":"Тоттенхэм"}],"positionGroup":"MF"},{"id":"seed-ян-диоманде","name":"Ян Диоманде","position":"Левый вингер","age":19,"nationality":["Кот-д’Ивуар"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":70000000,"previousValue":28000000,"history":[{"date":"2024-09-01","value":27150000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":29500000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":28050000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":29100000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":30800000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":34050000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":36800000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":38300000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":39050000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":43550000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":45700000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":47900000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":51100000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":53900000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":56800000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":56700000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":62200000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":62050000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":64100000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":66050000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":68050000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":68750000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":70550000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":70000000,"clubName":"Реал Мадрид"}],"positionGroup":"FW"},{"id":"seed-энтони-гордон","name":"Энтони Гордон","position":"Левый вингер","age":25,"nationality":["Англия"],"clubId":"131","clubName":"Барселона","competitionId":"ES1","competitionName":"Ла Лига","marketValue":65000000,"previousValue":60000000,"history":[{"date":"2024-09-01","value":61500000,"clubName":"Барселона"},{"date":"2024-10-01","value":58450000,"clubName":"Барселона"},{"date":"2024-11-01","value":60500000,"clubName":"Барселона"},{"date":"2024-12-01","value":60200000,"clubName":"Барселона"},{"date":"2025-01-01","value":61100000,"clubName":"Барселона"},{"date":"2025-02-01","value":61400000,"clubName":"Барселона"},{"date":"2025-03-01","value":59300000,"clubName":"Барселона"},{"date":"2025-04-01","value":60200000,"clubName":"Барселона"},{"date":"2025-05-01","value":61050000,"clubName":"Барселона"},{"date":"2025-06-01","value":62400000,"clubName":"Барселона"},{"date":"2025-07-01","value":62750000,"clubName":"Барселона"},{"date":"2025-08-01","value":63200000,"clubName":"Барселона"},{"date":"2025-09-01","value":62850000,"clubName":"Барселона"},{"date":"2025-10-01","value":64450000,"clubName":"Барселона"},{"date":"2025-11-01","value":62250000,"clubName":"Барселона"},{"date":"2025-12-01","value":64500000,"clubName":"Барселона"},{"date":"2026-01-01","value":63450000,"clubName":"Барселона"},{"date":"2026-02-01","value":63400000,"clubName":"Барселона"},{"date":"2026-03-01","value":64650000,"clubName":"Барселона"},{"date":"2026-04-01","value":64550000,"clubName":"Барселона"},{"date":"2026-05-01","value":64650000,"clubName":"Барселона"},{"date":"2026-06-01","value":63650000,"clubName":"Барселона"},{"date":"2026-07-01","value":65250000,"clubName":"Барселона"},{"date":"2026-08-25","value":65000000,"clubName":"Барселона"}],"positionGroup":"FW"},{"id":"seed-джереми-жаке","name":"Джереми Жаке","position":"Центральный защитник","age":21,"nationality":["Франция"],"clubId":"31","clubName":"Ливерпуль","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":55000000,"previousValue":25000000,"history":[{"date":"2024-09-01","value":23900000,"clubName":"Ливерпуль"},{"date":"2024-10-01","value":26150000,"clubName":"Ливерпуль"},{"date":"2024-11-01","value":26800000,"clubName":"Ливерпуль"},{"date":"2024-12-01","value":26300000,"clubName":"Ливерпуль"},{"date":"2025-01-01","value":28650000,"clubName":"Ливерпуль"},{"date":"2025-02-01","value":29950000,"clubName":"Ливерпуль"},{"date":"2025-03-01","value":30250000,"clubName":"Ливерпуль"},{"date":"2025-04-01","value":30500000,"clubName":"Ливерпуль"},{"date":"2025-05-01","value":32950000,"clubName":"Ливерпуль"},{"date":"2025-06-01","value":35950000,"clubName":"Ливерпуль"},{"date":"2025-07-01","value":37350000,"clubName":"Ливерпуль"},{"date":"2025-08-01","value":38950000,"clubName":"Ливерпуль"},{"date":"2025-09-01","value":41000000,"clubName":"Ливерпуль"},{"date":"2025-10-01","value":43750000,"clubName":"Ливерпуль"},{"date":"2025-11-01","value":44850000,"clubName":"Ливерпуль"},{"date":"2025-12-01","value":46800000,"clubName":"Ливерпуль"},{"date":"2026-01-01","value":48800000,"clubName":"Ливерпуль"},{"date":"2026-02-01","value":51200000,"clubName":"Ливерпуль"},{"date":"2026-03-01","value":52150000,"clubName":"Ливерпуль"},{"date":"2026-04-01","value":52100000,"clubName":"Ливерпуль"},{"date":"2026-05-01","value":53650000,"clubName":"Ливерпуль"},{"date":"2026-06-01","value":53650000,"clubName":"Ливерпуль"},{"date":"2026-07-01","value":54050000,"clubName":"Ливерпуль"},{"date":"2026-08-25","value":55000000,"clubName":"Ливерпуль"}],"positionGroup":"DF"},{"id":"seed-максанс-лакруа","name":"Максанс Лакруа","position":"Центральный защитник","age":26,"nationality":["Франция"],"clubId":"631","clubName":"Челси","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":45000000,"previousValue":32000000,"history":[{"date":"2024-09-01","value":31300000,"clubName":"Челси"},{"date":"2024-10-01","value":31800000,"clubName":"Челси"},{"date":"2024-11-01","value":31450000,"clubName":"Челси"},{"date":"2024-12-01","value":32200000,"clubName":"Челси"},{"date":"2025-01-01","value":33850000,"clubName":"Челси"},{"date":"2025-02-01","value":33700000,"clubName":"Челси"},{"date":"2025-03-01","value":34450000,"clubName":"Челси"},{"date":"2025-04-01","value":34950000,"clubName":"Челси"},{"date":"2025-05-01","value":36750000,"clubName":"Челси"},{"date":"2025-06-01","value":36000000,"clubName":"Челси"},{"date":"2025-07-01","value":37350000,"clubName":"Челси"},{"date":"2025-08-01","value":38150000,"clubName":"Челси"},{"date":"2025-09-01","value":38050000,"clubName":"Челси"},{"date":"2025-10-01","value":39500000,"clubName":"Челси"},{"date":"2025-11-01","value":40850000,"clubName":"Челси"},{"date":"2025-12-01","value":42400000,"clubName":"Челси"},{"date":"2026-01-01","value":42700000,"clubName":"Челси"},{"date":"2026-02-01","value":43650000,"clubName":"Челси"},{"date":"2026-03-01","value":42650000,"clubName":"Челси"},{"date":"2026-04-01","value":44250000,"clubName":"Челси"},{"date":"2026-05-01","value":45150000,"clubName":"Челси"},{"date":"2026-06-01","value":43600000,"clubName":"Челси"},{"date":"2026-07-01","value":45300000,"clubName":"Челси"},{"date":"2026-08-25","value":45000000,"clubName":"Челси"}],"positionGroup":"DF"},{"id":"seed-эзри-конса","name":"Эзри Конса","position":"Центральный защитник","age":29,"nationality":["Англия"],"clubId":"11","clubName":"Арсенал","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":45000000,"previousValue":40000000,"history":[{"date":"2024-09-01","value":40550000,"clubName":"Арсенал"},{"date":"2024-10-01","value":40600000,"clubName":"Арсенал"},{"date":"2024-11-01","value":39100000,"clubName":"Арсенал"},{"date":"2024-12-01","value":39350000,"clubName":"Арсенал"},{"date":"2025-01-01","value":39600000,"clubName":"Арсенал"},{"date":"2025-02-01","value":41350000,"clubName":"Арсенал"},{"date":"2025-03-01","value":39800000,"clubName":"Арсенал"},{"date":"2025-04-01","value":41350000,"clubName":"Арсенал"},{"date":"2025-05-01","value":40700000,"clubName":"Арсенал"},{"date":"2025-06-01","value":40750000,"clubName":"Арсенал"},{"date":"2025-07-01","value":41800000,"clubName":"Арсенал"},{"date":"2025-08-01","value":41950000,"clubName":"Арсенал"},{"date":"2025-09-01","value":42550000,"clubName":"Арсенал"},{"date":"2025-10-01","value":41950000,"clubName":"Арсенал"},{"date":"2025-11-01","value":44150000,"clubName":"Арсенал"},{"date":"2025-12-01","value":43900000,"clubName":"Арсенал"},{"date":"2026-01-01","value":44000000,"clubName":"Арсенал"},{"date":"2026-02-01","value":45100000,"clubName":"Арсенал"},{"date":"2026-03-01","value":44650000,"clubName":"Арсенал"},{"date":"2026-04-01","value":45200000,"clubName":"Арсенал"},{"date":"2026-05-01","value":45050000,"clubName":"Арсенал"},{"date":"2026-06-01","value":44850000,"clubName":"Арсенал"},{"date":"2026-07-01","value":44200000,"clubName":"Арсенал"},{"date":"2026-08-25","value":45000000,"clubName":"Арсенал"}],"positionGroup":"DF"},{"id":"seed-марк-кукурелья","name":"Марк Кукурелья","position":"Левый защитник","age":28,"nationality":["Испания"],"clubId":"418","clubName":"Реал Мадрид","competitionId":"ES1","competitionName":"Ла Лига","marketValue":50000000,"previousValue":45000000,"history":[{"date":"2024-09-01","value":44050000,"clubName":"Реал Мадрид"},{"date":"2024-10-01","value":45350000,"clubName":"Реал Мадрид"},{"date":"2024-11-01","value":45650000,"clubName":"Реал Мадрид"},{"date":"2024-12-01","value":44950000,"clubName":"Реал Мадрид"},{"date":"2025-01-01","value":46650000,"clubName":"Реал Мадрид"},{"date":"2025-02-01","value":46800000,"clubName":"Реал Мадрид"},{"date":"2025-03-01","value":46500000,"clubName":"Реал Мадрид"},{"date":"2025-04-01","value":45500000,"clubName":"Реал Мадрид"},{"date":"2025-05-01","value":46600000,"clubName":"Реал Мадрид"},{"date":"2025-06-01","value":46300000,"clubName":"Реал Мадрид"},{"date":"2025-07-01","value":46900000,"clubName":"Реал Мадрид"},{"date":"2025-08-01","value":48550000,"clubName":"Реал Мадрид"},{"date":"2025-09-01","value":48000000,"clubName":"Реал Мадрид"},{"date":"2025-10-01","value":48150000,"clubName":"Реал Мадрид"},{"date":"2025-11-01","value":48050000,"clubName":"Реал Мадрид"},{"date":"2025-12-01","value":48650000,"clubName":"Реал Мадрид"},{"date":"2026-01-01","value":47800000,"clubName":"Реал Мадрид"},{"date":"2026-02-01","value":48500000,"clubName":"Реал Мадрид"},{"date":"2026-03-01","value":50500000,"clubName":"Реал Мадрид"},{"date":"2026-04-01","value":48500000,"clubName":"Реал Мадрид"},{"date":"2026-05-01","value":49600000,"clubName":"Реал Мадрид"},{"date":"2026-06-01","value":49200000,"clubName":"Реал Мадрид"},{"date":"2026-07-01","value":49500000,"clubName":"Реал Мадрид"},{"date":"2026-08-25","value":50000000,"clubName":"Реал Мадрид"}],"positionGroup":"DF"},{"id":"seed-андрей-сантос","name":"Андрей Сантос","position":"Центральный полузащитник","age":22,"nationality":["Бразилия"],"clubId":"985","clubName":"Манчестер Юнайтед","competitionId":"GB1","competitionName":"Премьер-лига","marketValue":55000000,"previousValue":30000000,"history":[{"date":"2024-09-01","value":29200000,"clubName":"Манчестер Юнайтед"},{"date":"2024-10-01","value":31200000,"clubName":"Манчестер Юнайтед"},{"date":"2024-11-01","value":30850000,"clubName":"Манчестер Юнайтед"},{"date":"2024-12-01","value":29950000,"clubName":"Манчестер Юнайтед"},{"date":"2025-01-01","value":31100000,"clubName":"Манчестер Юнайтед"},{"date":"2025-02-01","value":32100000,"clubName":"Манчестер Юнайтед"},{"date":"2025-03-01","value":34350000,"clubName":"Манчестер Юнайтед"},{"date":"2025-04-01","value":36850000,"clubName":"Манчестер Юнайтед"},{"date":"2025-05-01","value":37000000,"clubName":"Манчестер Юнайтед"},{"date":"2025-06-01","value":37250000,"clubName":"Манчестер Юнайтед"},{"date":"2025-07-01","value":39000000,"clubName":"Манчестер Юнайтед"},{"date":"2025-08-01","value":41400000,"clubName":"Манчестер Юнайтед"},{"date":"2025-09-01","value":42800000,"clubName":"Манчестер Юнайтед"},{"date":"2025-10-01","value":45850000,"clubName":"Манчестер Юнайтед"},{"date":"2025-11-01","value":46550000,"clubName":"Манчестер Юнайтед"},{"date":"2025-12-01","value":49200000,"clubName":"Манчестер Юнайтед"},{"date":"2026-01-01","value":48250000,"clubName":"Манчестер Юнайтед"},{"date":"2026-02-01","value":50700000,"clubName":"Манчестер Юнайтед"},{"date":"2026-03-01","value":51750000,"clubName":"Манчестер Юнайтед"},{"date":"2026-04-01","value":52250000,"clubName":"Манчестер Юнайтед"},{"date":"2026-05-01","value":54200000,"clubName":"Манчестер Юнайтед"},{"date":"2026-06-01","value":53350000,"clubName":"Манчестер Юнайтед"},{"date":"2026-07-01","value":55500000,"clubName":"Манчестер Юнайтед"},{"date":"2026-08-25","value":55000000,"clubName":"Манчестер Юнайтед"}],"positionGroup":"MF"},{"id":"seed-гонсалу-рамуш","name":"Гонсалу Рамуш","position":"Нападающий","age":25,"nationality":["Португалия"],"clubId":"5","clubName":"Милан","competitionId":"IT1","competitionName":"Серия А","marketValue":55000000,"previousValue":40000000,"history":[{"date":"2024-09-01","value":39750000,"clubName":"Милан"},{"date":"2024-10-01","value":41150000,"clubName":"Милан"},{"date":"2024-11-01","value":39050000,"clubName":"Милан"},{"date":"2024-12-01","value":42000000,"clubName":"Милан"},{"date":"2025-01-01","value":41850000,"clubName":"Милан"},{"date":"2025-02-01","value":41850000,"clubName":"Милан"},{"date":"2025-03-01","value":42450000,"clubName":"Милан"},{"date":"2025-04-01","value":42850000,"clubName":"Милан"},{"date":"2025-05-01","value":43650000,"clubName":"Милан"},{"date":"2025-06-01","value":46050000,"clubName":"Милан"},{"date":"2025-07-01","value":44700000,"clubName":"Милан"},{"date":"2025-08-01","value":45900000,"clubName":"Милан"},{"date":"2025-09-01","value":47650000,"clubName":"Милан"},{"date":"2025-10-01","value":48600000,"clubName":"Милан"},{"date":"2025-11-01","value":50500000,"clubName":"Милан"},{"date":"2025-12-01","value":52150000,"clubName":"Милан"},{"date":"2026-01-01","value":51000000,"clubName":"Милан"},{"date":"2026-02-01","value":52350000,"clubName":"Милан"},{"date":"2026-03-01","value":53650000,"clubName":"Милан"},{"date":"2026-04-01","value":54700000,"clubName":"Милан"},{"date":"2026-05-01","value":55450000,"clubName":"Милан"},{"date":"2026-06-01","value":54600000,"clubName":"Милан"},{"date":"2026-07-01","value":55750000,"clubName":"Милан"},{"date":"2026-08-25","value":55000000,"clubName":"Милан"}],"positionGroup":"FW"},{"id":"seed-юрий-горшков","name":"Юрий Горшков","position":"Левый защитник","age":23,"nationality":["Россия"],"clubId":"964","clubName":"Зенит","competitionId":"RU1","competitionName":"РПЛ","marketValue":12000000,"previousValue":8000000,"history":[{"date":"2024-09-01","value":7900000,"clubName":"Зенит"},{"date":"2024-10-01","value":7800000,"clubName":"Зенит"},{"date":"2024-11-01","value":7950000,"clubName":"Зенит"},{"date":"2024-12-01","value":8200000,"clubName":"Зенит"},{"date":"2025-01-01","value":8550000,"clubName":"Зенит"},{"date":"2025-02-01","value":8500000,"clubName":"Зенит"},{"date":"2025-03-01","value":8400000,"clubName":"Зенит"},{"date":"2025-04-01","value":8650000,"clubName":"Зенит"},{"date":"2025-05-01","value":9300000,"clubName":"Зенит"},{"date":"2025-06-01","value":9350000,"clubName":"Зенит"},{"date":"2025-07-01","value":9350000,"clubName":"Зенит"},{"date":"2025-08-01","value":9700000,"clubName":"Зенит"},{"date":"2025-09-01","value":10250000,"clubName":"Зенит"},{"date":"2025-10-01","value":10200000,"clubName":"Зенит"},{"date":"2025-11-01","value":10900000,"clubName":"Зенит"},{"date":"2025-12-01","value":10600000,"clubName":"Зенит"},{"date":"2026-01-01","value":11350000,"clubName":"Зенит"},{"date":"2026-02-01","value":11250000,"clubName":"Зенит"},{"date":"2026-03-01","value":11400000,"clubName":"Зенит"},{"date":"2026-04-01","value":11500000,"clubName":"Зенит"},{"date":"2026-05-01","value":11850000,"clubName":"Зенит"},{"date":"2026-06-01","value":11800000,"clubName":"Зенит"},{"date":"2026-07-01","value":12200000,"clubName":"Зенит"},{"date":"2026-08-25","value":12000000,"clubName":"Зенит"}],"positionGroup":"DF"},{"id":"seed-матвей-кисляк","name":"Матвей Кисляк","position":"Центральный полузащитник","age":21,"nationality":["Россия"],"clubId":"235","clubName":"ЦСКА Москва","competitionId":"RU1","competitionName":"РПЛ","marketValue":18000000,"previousValue":11000000,"history":[{"date":"2024-09-01","value":11450000,"clubName":"ЦСКА Москва"},{"date":"2024-10-01","value":10850000,"clubName":"ЦСКА Москва"},{"date":"2024-11-01","value":11200000,"clubName":"ЦСКА Москва"},{"date":"2024-12-01","value":11000000,"clubName":"ЦСКА Москва"},{"date":"2025-01-01","value":11900000,"clubName":"ЦСКА Москва"},{"date":"2025-02-01","value":11700000,"clubName":"ЦСКА Москва"},{"date":"2025-03-01","value":12250000,"clubName":"ЦСКА Москва"},{"date":"2025-04-01","value":12350000,"clubName":"ЦСКА Москва"},{"date":"2025-05-01","value":12750000,"clubName":"ЦСКА Москва"},{"date":"2025-06-01","value":13250000,"clubName":"ЦСКА Москва"},{"date":"2025-07-01","value":13800000,"clubName":"ЦСКА Москва"},{"date":"2025-08-01","value":14150000,"clubName":"ЦСКА Москва"},{"date":"2025-09-01","value":15050000,"clubName":"ЦСКА Москва"},{"date":"2025-10-01","value":15600000,"clubName":"ЦСКА Москва"},{"date":"2025-11-01","value":15400000,"clubName":"ЦСКА Москва"},{"date":"2025-12-01","value":15900000,"clubName":"ЦСКА Москва"},{"date":"2026-01-01","value":16150000,"clubName":"ЦСКА Москва"},{"date":"2026-02-01","value":16900000,"clubName":"ЦСКА Москва"},{"date":"2026-03-01","value":17350000,"clubName":"ЦСКА Москва"},{"date":"2026-04-01","value":17700000,"clubName":"ЦСКА Москва"},{"date":"2026-05-01","value":17650000,"clubName":"ЦСКА Москва"},{"date":"2026-06-01","value":17750000,"clubName":"ЦСКА Москва"},{"date":"2026-07-01","value":18250000,"clubName":"ЦСКА Москва"},{"date":"2026-08-25","value":18000000,"clubName":"ЦСКА Москва"}],"positionGroup":"MF"},{"id":"seed-алексей-батраков","name":"Алексей Батраков","position":"Атакующий полузащитник","age":21,"nationality":["Россия"],"clubId":"232","clubName":"Спартак Москва","competitionId":"RU1","competitionName":"РПЛ","marketValue":22000000,"previousValue":12000000,"history":[{"date":"2024-09-01","value":12450000,"clubName":"Спартак Москва"},{"date":"2024-10-01","value":11800000,"clubName":"Спартак Москва"},{"date":"2024-11-01","value":12150000,"clubName":"Спартак Москва"},{"date":"2024-12-01","value":12450000,"clubName":"Спартак Москва"},{"date":"2025-01-01","value":12550000,"clubName":"Спартак Москва"},{"date":"2025-02-01","value":12800000,"clubName":"Спартак Москва"},{"date":"2025-03-01","value":13250000,"clubName":"Спартак Москва"},{"date":"2025-04-01","value":14450000,"clubName":"Спартак Москва"},{"date":"2025-05-01","value":14650000,"clubName":"Спартак Москва"},{"date":"2025-06-01","value":15400000,"clubName":"Спартак Москва"},{"date":"2025-07-01","value":15800000,"clubName":"Спартак Москва"},{"date":"2025-08-01","value":16950000,"clubName":"Спартак Москва"},{"date":"2025-09-01","value":16900000,"clubName":"Спартак Москва"},{"date":"2025-10-01","value":18200000,"clubName":"Спартак Москва"},{"date":"2025-11-01","value":18850000,"clubName":"Спартак Москва"},{"date":"2025-12-01","value":19300000,"clubName":"Спартак Москва"},{"date":"2026-01-01","value":19950000,"clubName":"Спартак Москва"},{"date":"2026-02-01","value":20450000,"clubName":"Спартак Москва"},{"date":"2026-03-01","value":20350000,"clubName":"Спартак Москва"},{"date":"2026-04-01","value":20900000,"clubName":"Спартак Москва"},{"date":"2026-05-01","value":21200000,"clubName":"Спартак Москва"},{"date":"2026-06-01","value":21450000,"clubName":"Спартак Москва"},{"date":"2026-07-01","value":22050000,"clubName":"Спартак Москва"},{"date":"2026-08-25","value":22000000,"clubName":"Спартак Москва"}],"positionGroup":"MF"},{"id":"seed-эду-кабрал","name":"Эду Кабрал","position":"Правый защитник","age":23,"nationality":["Португалия"],"clubId":"964b","clubName":"Краснодар","competitionId":"RU1","competitionName":"РПЛ","marketValue":9000000,"previousValue":6000000,"history":[{"date":"2024-09-01","value":5900000,"clubName":"Краснодар"},{"date":"2024-10-01","value":6000000,"clubName":"Краснодар"},{"date":"2024-11-01","value":5900000,"clubName":"Краснодар"},{"date":"2024-12-01","value":6250000,"clubName":"Краснодар"},{"date":"2025-01-01","value":6250000,"clubName":"Краснодар"},{"date":"2025-02-01","value":6550000,"clubName":"Краснодар"},{"date":"2025-03-01","value":6600000,"clubName":"Краснодар"},{"date":"2025-04-01","value":6550000,"clubName":"Краснодар"},{"date":"2025-05-01","value":6950000,"clubName":"Краснодар"},{"date":"2025-06-01","value":7100000,"clubName":"Краснодар"},{"date":"2025-07-01","value":7300000,"clubName":"Краснодар"},{"date":"2025-08-01","value":7200000,"clubName":"Краснодар"},{"date":"2025-09-01","value":7600000,"clubName":"Краснодар"},{"date":"2025-10-01","value":7600000,"clubName":"Краснодар"},{"date":"2025-11-01","value":8000000,"clubName":"Краснодар"},{"date":"2025-12-01","value":8050000,"clubName":"Краснодар"},{"date":"2026-01-01","value":8400000,"clubName":"Краснодар"},{"date":"2026-02-01","value":8350000,"clubName":"Краснодар"},{"date":"2026-03-01","value":8600000,"clubName":"Краснодар"},{"date":"2026-04-01","value":8950000,"clubName":"Краснодар"},{"date":"2026-05-01","value":9000000,"clubName":"Краснодар"},{"date":"2026-06-01","value":9000000,"clubName":"Краснодар"},{"date":"2026-07-01","value":9150000,"clubName":"Краснодар"},{"date":"2026-08-25","value":9000000,"clubName":"Краснодар"}],"positionGroup":"DF"}],"transfers":[{"id":"seed-t-0","playerId":"seed-морган-роджерс","playerName":"Морган Роджерс","position":"Атакующий полузащитник","age":24,"from":{"id":"15","name":"Астон Вилла"},"to":{"id":"631","name":"Челси"},"competitionId":"GB1","date":"2026-07-14","fee":135720000,"marketValue":110000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-1","playerId":"seed-эллиот-андерсон","playerName":"Эллиот Андерсон","position":"Центральный полузащитник","age":23,"from":{"id":null,"name":"Ноттингем Форест"},"to":{"id":"281","name":"Манчестер Сити"},"competitionId":"GB1","date":"2026-07-02","fee":134560000,"marketValue":110000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-2","playerId":"seed-ян-диоманде","playerName":"Ян Диоманде","position":"Левый вингер","age":19,"from":{"id":"162","name":"РБ Лейпциг"},"to":{"id":"418","name":"Реал Мадрид"},"competitionId":"ES1","date":"2026-06-28","fee":124120000,"marketValue":70000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-3","playerId":"seed-сандро-тонали","playerName":"Сандро Тонали","position":"Центральный полузащитник","age":26,"from":{"id":"405","name":"Ньюкасл"},"to":{"id":"148","name":"Тоттенхэм"},"competitionId":"GB1","date":"2026-07-21","fee":107300000,"marketValue":75000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-4","playerId":"seed-матеус-фернандеш","playerName":"Матеус Фернандеш","position":"Центральный полузащитник","age":22,"from":{"id":null,"name":"Вест Хэм"},"to":{"id":"148","name":"Тоттенхэм"},"competitionId":"GB1","date":"2026-08-04","fee":98600000,"marketValue":70000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-5","playerId":"seed-бруну-гимарайнс","playerName":"Бруну Гимарайнс","position":"Опорный полузащитник","age":28,"from":{"id":"405","name":"Ньюкасл"},"to":{"id":"11","name":"Арсенал"},"competitionId":"GB1","date":"2026-07-09","fee":87000000,"marketValue":70000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-6","playerId":"seed-гонсалу-рамуш","playerName":"Гонсалу Рамуш","position":"Нападающий","age":25,"from":{"id":"583","name":"ПСЖ"},"to":{"id":"5","name":"Милан"},"competitionId":"IT1","date":"2026-08-11","fee":73892000,"marketValue":55000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-7","playerId":"seed-энтони-гордон","playerName":"Энтони Гордон","position":"Левый вингер","age":25,"from":{"id":"405","name":"Ньюкасл"},"to":{"id":"131","name":"Барселона"},"competitionId":"ES1","date":"2026-08-06","fee":69600000,"marketValue":65000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-8","playerId":null,"playerName":"Крисенсио Саммервилл","position":null,"age":null,"from":{"id":null,"name":"Вест Хэм"},"to":{"id":null,"name":"Аль-Хиляль"},"competitionId":null,"date":"2026-07-30","fee":63800000,"marketValue":null,"upcoming":false,"season":"26/27"},{"id":"seed-t-9","playerId":"seed-джереми-жаке","playerName":"Джереми Жаке","position":"Центральный защитник","age":21,"from":{"id":null,"name":"Ренн"},"to":{"id":"31","name":"Ливерпуль"},"competitionId":"GB1","date":"2026-06-19","fee":63800000,"marketValue":55000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-10","playerId":null,"playerName":"Тижани Рейндерс","position":null,"age":null,"from":{"id":"281","name":"Манчестер Сити"},"to":{"id":null,"name":"Аль-Кадисия"},"competitionId":null,"date":"2026-08-01","fee":60714400,"marketValue":null,"upcoming":false,"season":"26/27"},{"id":"seed-t-11","playerId":null,"playerName":"Ян Пауль ван Хекке","position":null,"age":null,"from":{"id":null,"name":"Брайтон"},"to":{"id":"148","name":"Тоттенхэм"},"competitionId":"GB1","date":"2026-07-25","fee":60320000,"marketValue":null,"upcoming":false,"season":"26/27"},{"id":"seed-t-12","playerId":"seed-максанс-лакруа","playerName":"Максанс Лакруа","position":"Центральный защитник","age":26,"from":{"id":null,"name":"Кристал Пэлас"},"to":{"id":"631","name":"Челси"},"competitionId":"GB1","date":"2026-08-09","fee":60320000,"marketValue":45000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-13","playerId":"seed-родри","playerName":"Родри","position":"Опорный полузащитник","age":30,"from":{"id":"281","name":"Манчестер Сити"},"to":{"id":"131","name":"Барселона"},"competitionId":"ES1","date":"2026-08-18","fee":59566000,"marketValue":80000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-14","playerId":"seed-эзри-конса","playerName":"Эзри Конса","position":"Центральный защитник","age":29,"from":{"id":"15","name":"Астон Вилла"},"to":{"id":"11","name":"Арсенал"},"competitionId":"GB1","date":"2026-07-17","fee":59160000,"marketValue":45000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-15","playerId":null,"playerName":"Йохан Манзамби","position":null,"age":null,"from":{"id":null,"name":"Фрайбург"},"to":{"id":"15","name":"Астон Вилла"},"competitionId":"GB1","date":"2026-08-13","fee":59125200,"marketValue":null,"upcoming":false,"season":"26/27"},{"id":"seed-t-16","playerId":"seed-андрей-сантос","playerName":"Андрей Сантос","position":"Центральный полузащитник","age":22,"from":{"id":"631","name":"Челси"},"to":{"id":"985","name":"Манчестер Юнайтед"},"competitionId":"GB1","date":"2026-08-20","fee":55680000,"marketValue":55000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-17","playerId":"seed-марк-кукурелья","playerName":"Марк Кукурелья","position":"Левый защитник","age":28,"from":{"id":"631","name":"Челси"},"to":{"id":"418","name":"Реал Мадрид"},"competitionId":"ES1","date":"2026-07-28","fee":55100000,"marketValue":50000000,"upcoming":false,"season":"26/27"},{"id":"seed-t-18","playerId":null,"playerName":"Марко Палестра","position":null,"age":null,"from":{"id":null,"name":"Аталанта"},"to":{"id":"631","name":"Челси"},"competitionId":"GB1","date":"2026-08-15","fee":54520000,"marketValue":null,"upcoming":false,"season":"26/27"},{"id":"seed-t-19","playerId":null,"playerName":"Лука Вушкович","position":null,"age":null,"from":{"id":"148","name":"Тоттенхэм"},"to":{"id":null,"name":"Брайтон"},"competitionId":null,"date":"2026-08-22","fee":53360000,"marketValue":null,"upcoming":false,"season":"26/27"}]};</script>
+<script type="module">
+/* ───────────────────────────────────────────────────────────────────────────
+   Transfer Tracker — клиент.
+   Никаких зависимостей: SVG-графики, hash-роутинг, делегирование событий.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const S = {
+  data: { competitions: [], clubs: [], players: [], transfers: [], source: 'seed' },
+  status: null,
+  version: -1,
+  filters: {
+    players: { comp: 'all', pos: 'all', q: '', sort: 'marketValue', dir: -1, page: 0, ageMax: 'all' },
+    transfers: { comp: 'all', min: 0, sort: 'date' },
+    clubs: { comp: 'all' },
+  },
+};
+
+const PAGE_SIZE = 40;
+const COLORS = {
+  s1: '#3987e5', s2: '#d95926', s3: '#199e70',
+  good: '#0ca30c', goodInk: '#46d16d', crit: '#d03b3b', critInk: '#f07070',
+  grid: '#232a36', axis: '#2f3644', text2: '#a8b1c1', muted: '#717d90',
+  surface: '#141922',
+};
+
+/* ── Утилиты ───────────────────────────────────────────────────────────── */
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = (tag, attrs = {}, html = '') => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (html) n.innerHTML = html;
+  return n;
+};
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function fmtMoney(v, { compact = true, sign = false } = {}) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  const s = v < 0 ? '−' : sign && v > 0 ? '+' : '';
+  const a = Math.abs(v);
+  if (!compact) return s + '€' + a.toLocaleString('ru-RU');
+  if (a >= 1e9) return `${s}€${(a / 1e9).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} млрд`;
+  if (a >= 1e6) return `${s}€${(a / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: a < 1e7 ? 1 : 0 })} млн`;
+  if (a >= 1e3) return `${s}€${Math.round(a / 1e3)} тыс.`;
+  return s + '€' + a;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (Number.isNaN(+dt)) return d;
+  return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: '2-digit' });
+}
+
+/** Полный год — для дат контрактов, где «30 г.» читается двусмысленно. */
+function fmtDateFull(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (Number.isNaN(+dt)) return d;
+  return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+const FOOT_RU = { right: 'правая', left: 'левая', both: 'обе' };
+
+function fmtDateTime(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (Number.isNaN(+dt)) return d;
+  return dt.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+const initials = (name) =>
+  String(name || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0] || '')
+    .join('')
+    .toUpperCase();
+
+function deltaHtml(cur, prev) {
+  if (!Number.isFinite(cur) || !Number.isFinite(prev) || prev === 0) {
+    return '<span class="delta delta--flat">—</span>';
+  }
+  const diff = cur - prev;
+  const pct = (diff / prev) * 100;
+  if (Math.abs(pct) < 0.5) return '<span class="delta delta--flat">0%</span>';
+  const up = diff > 0;
+  return `<span class="delta delta--${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(
+    Math.abs(pct) < 10 ? 1 : 0,
+  )}%</span>`;
+}
+
+const SEED = window.__SEED__;
+
+/** Превью: вместо сервера отвечает встроенный офлайн-датасет. */
+async function api(path) {
+  const u = new URL(path, 'http://preview');
+  const p = u.pathname;
+
+  if (p === '/api/dataset') return { ...SEED, version: 0 };
+
+  if (p === '/api/status') {
+    return {
+      source: 'seed', status: 'idle', version: 0,
+      progress: { done: 1, total: 1, step: 'Готово' },
+      builtAt: SEED.generatedAt, error: null, upstream: null,
+      generatedAt: SEED.generatedAt, note: SEED.note,
+      counts: {
+        players: SEED.players.length, clubs: SEED.clubs.length,
+        transfers: SEED.transfers.length, competitions: SEED.competitions.length,
+      },
+      config: { apiUrl: null, competitions: SEED.competitions.map((c) => c.id), refreshMinutes: 0 },
+    };
+  }
+
+  const pm = p.match(/^\/api\/players\/(.+)$/);
+  if (pm) {
+    const id = decodeURIComponent(pm[1]);
+    const player = SEED.players.find((x) => x.id === id) || null;
+    return {
+      source: 'seed',
+      player,
+      history: player ? player.history : [],
+      transfers: SEED.transfers.filter((t) => t.playerId === id),
+      ranking: null,
+    };
+  }
+
+  if (p === '/api/search') {
+    const q = (u.searchParams.get('q') || '').trim().toLowerCase();
+    return {
+      source: 'local',
+      results: SEED.players
+        .filter((x) => x.name.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map((x) => ({ id: x.id, name: x.name, club: x.clubName, marketValue: x.marketValue, position: x.position })),
+    };
+  }
+
+  throw new Error('404');
+}
+
+/* ── Тултип ────────────────────────────────────────────────────────────── */
+
+const tip = $('#tooltip');
+function showTip(html, x, y) {
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let left = x + 14;
+  let top = y - r.height - 12;
+  if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+  if (top < 8) top = y + 18;
+  tip.style.left = `${Math.max(8, left)}px`;
+  tip.style.top = `${top}px`;
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* ── Графики ───────────────────────────────────────────────────────────── */
+
+/**
+ * Горизонтальные бары — сравнение величин. Одна серия → легенда не нужна
+ * (заголовок называет её), значения подписаны напрямую у конца марки.
+ * Свёрстано на HTML/CSS: текст не искажается при растягивании и остаётся
+ * доступным для поиска и скринридера.
+ */
+function hBarChart(rows, { color = COLORS.s1, valueFmt = fmtMoney } = {}) {
+  if (!rows.length) return '<div class="empty">Нет данных</div>';
+  const max = Math.max(...rows.map((r) => r.value)) || 1;
+  return `<div class="hbar">${rows
+    .map((r) => {
+      const w = Math.max(0.8, (r.value / max) * 100);
+      const tipTxt = `${esc(r.label)}|${valueFmt(r.value)}${r.sub ? '|' + esc(r.sub) : ''}`;
+      return `<div class="hbar-row" data-tip="${tipTxt}" ${r.id ? `data-player="${esc(r.id)}"` : ''}>
+        <div class="hbar-label" title="${esc(r.label)}">${esc(r.label)}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${color}"></div></div>
+        <div class="hbar-value">${valueFmt(r.value)}</div>
+      </div>`;
+    })
+    .join('')}</div>`;
+}
+
+/**
+ * Диверджентные бары — полярность (потратили ↔ заработали).
+ * Пара blue↔red с нейтральной осью посередине; две серии → есть легенда.
+ */
+function divergingChart(rows) {
+  if (!rows.length) return '<div class="empty">Нет данных</div>';
+  const max = Math.max(...rows.flatMap((r) => [r.spent || 0, r.income || 0])) || 1;
+  return `<div class="dv">${rows
+    .map(
+      (r) => `<div class="dv-row" data-tip="${esc(r.label)}|Потрачено: ${fmtMoney(r.spent)}|Заработано: ${fmtMoney(r.income)}">
+      <div class="dv-label">${esc(r.label)}</div>
+      <div class="dv-side dv-side--l"><span class="dv-bar" style="width:${((r.spent || 0) / max) * 100}%;background:${COLORS.crit}"></span></div>
+      <div class="dv-axis"></div>
+      <div class="dv-side dv-side--r"><span class="dv-bar" style="width:${((r.income || 0) / max) * 100}%;background:${COLORS.s1}"></span></div>
+    </div>`,
+    )
+    .join('')}</div>
+  <div class="legend">
+    <span><i style="background:${COLORS.crit}"></i>Потрачено</span>
+    <span><i style="background:${COLORS.s1}"></i>Заработано</span>
+  </div>`;
+}
+
+/**
+ * Линия — динамика стоимости. Одна серия (заголовок её называет → легенда не нужна),
+ * 2px линия, маркер на последней точке, перекрестие с тултипом по наведению.
+ * База НЕ нулевая — поэтому заливки под линией нет и обе крайние отметки оси
+ * подписаны явно: усечённая шкала допустима для линии, но не для площади.
+ */
+function lineChart(points, { height = 190 } = {}) {
+  if (points.length < 2) return '<div class="empty">Недостаточно точек истории</div>';
+  const W = 520;
+  const H = height;
+  const pad = { l: 8, r: 8, t: 16, b: 24 };
+  const vals = points.map((p) => p.value);
+  const maxRaw = Math.max(...vals);
+  const minRaw = Math.min(...vals);
+  const cushion = (maxRaw - minRaw) * 0.18 || maxRaw * 0.1 || 1;
+  const maxV = maxRaw + cushion;
+  const minV = Math.max(0, minRaw - cushion);
+  const span = maxV - minV || 1;
+  const x = (i) => pad.l + (i / (points.length - 1)) * (W - pad.l - pad.r);
+  const y = (v) => pad.t + (1 - (v - minV) / span) * (H - pad.t - pad.b);
+
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('');
+
+  // Подписи оси с «гало» под цвет поверхности, чтобы линия не перечёркивала текст.
+  const ticks = [maxRaw, (maxRaw + minRaw) / 2, minRaw].map(
+    (v) => `<line class="grid-line" x1="${pad.l}" y1="${y(v)}" x2="${W - pad.r}" y2="${y(v)}"></line>
+            <text class="axis-label" x="${pad.l}" y="${y(v) - 5}"
+                  stroke="${COLORS.surface}" stroke-width="3.5" paint-order="stroke">${fmtMoney(v)}</text>`,
+  ).join('');
+
+  const hits = points
+    .map((p, i) => {
+      const w = (W - pad.l - pad.r) / points.length;
+      return `<rect class="pt-hit" x="${(x(i) - w / 2).toFixed(1)}" y="${pad.t}" width="${w.toFixed(1)}"
+                height="${H - pad.t - pad.b}" fill="transparent"
+                data-i="${i}" data-cx="${x(i).toFixed(1)}" data-cy="${y(p.value).toFixed(1)}"
+                data-tip="${esc(fmtDate(p.date))}|${fmtMoney(p.value)}${p.clubName ? '|' + esc(p.clubName) : ''}"></rect>`;
+    })
+    .join('');
+
+  const first = points[0];
+  const last = points[points.length - 1];
+
+  return `
+  <svg class="chart chart--area" viewBox="0 0 ${W} ${H}" role="img" data-chart="line"
+       preserveAspectRatio="xMidYMid meet">
+    ${ticks}
+    <path d="${line}" fill="none" stroke="${COLORS.s1}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+    <circle cx="${x(points.length - 1)}" cy="${y(last.value)}" r="4.5" fill="${COLORS.s1}" stroke="${COLORS.surface}" stroke-width="2"></circle>
+    <line class="crosshair" x1="0" y1="${pad.t}" x2="0" y2="${H - pad.b}" stroke="${COLORS.axis}" stroke-width="1" opacity="0"></line>
+    <circle class="focus-dot" r="5" fill="${COLORS.s1}" stroke="${COLORS.surface}" stroke-width="2" opacity="0"></circle>
+    ${hits}
+    <text class="axis-label" x="${pad.l}" y="${H - 6}">${esc(fmtDate(first.date))}</text>
+    <text class="axis-label" x="${W - pad.r}" y="${H - 6}" text-anchor="end">${esc(fmtDate(last.date))}</text>
+  </svg>`;
+}
+
+/* ── Компоненты разметки ───────────────────────────────────────────────── */
+
+const tile = (label, value, foot = '') => `
+  <div class="card tile">
+    <div class="glow"></div>
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    ${foot ? `<div class="foot">${foot}</div>` : ''}
+  </div>`;
+
+const posTag = (p) => {
+  const g = p?.positionGroup || 'other';
+  return `<span class="tag tag--${g}">${esc(p?.position || '—')}</span>`;
+};
+
+const avatar = (p) =>
+  p?.image
+    ? `<span class="avatar"><img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()"></span>`
+    : `<span class="avatar">${esc(initials(p?.name))}</span>`;
+
+/* ── Представления ─────────────────────────────────────────────────────── */
+
+function viewOverview() {
+  const { players, clubs, competitions, transfers } = S.data;
+  const totalValue = clubs.reduce((s, c) => s + (c.totalValue || 0), 0);
+  const window26 = transfers.filter((t) => Number.isFinite(t.fee) && t.fee > 0);
+  const feeSum = window26.reduce((s, t) => s + t.fee, 0);
+  const top = players[0];
+  const risers = players
+    .filter((p) => Number.isFinite(p.previousValue) && Number.isFinite(p.marketValue) && p.previousValue > 0)
+    .map((p) => ({ ...p, pct: ((p.marketValue - p.previousValue) / p.previousValue) * 100 }))
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 6);
+
+  const topRows = players.slice(0, 10).map((p) => ({
+    id: p.id, label: p.name, value: p.marketValue || 0, sub: p.clubName,
+  }));
+
+  const bigDeals = [...transfers]
+    .filter((t) => Number.isFinite(t.fee))
+    .sort((a, b) => b.fee - a.fee)
+    .slice(0, 6);
+
+  const leagueRows = competitions
+    .filter((c) => c.spent || c.income)
+    .sort((a, b) => (b.spent + b.income) - (a.spent + a.income))
+    .slice(0, 6);
+
+  return `
+  ${S.data.source === 'seed' ? noteBlock() : ''}
+  <div class="page-head">
+    <div>
+      <h1>Обзор рынка</h1>
+      <p>${esc(competitions.map((c) => c.name).join(' · '))}</p>
+    </div>
+  </div>
+
+  <div class="grid grid-4" style="margin-bottom:16px">
+    ${tile('Суммарная стоимость составов', fmtMoney(totalValue), `${clubs.length} клубов в выборке`)}
+    ${tile('Трансферов в ленте', String(transfers.length), `с суммой: ${window26.length}`)}
+    ${tile('Сумма сделок', fmtMoney(feeSum), 'по сделкам с раскрытой суммой')}
+    ${tile(
+      'Самый дорогой игрок',
+      top ? fmtMoney(top.marketValue) : '—',
+      top ? `${esc(top.name)} · ${esc(top.clubName)}` : '',
+    )}
+  </div>
+
+  <div class="grid grid-7-5">
+    <div class="col">
+      <div class="card">
+        <div class="card-head"><h2>Топ-10 по рыночной стоимости</h2><span class="sub">клик — карточка игрока</span></div>
+        ${hBarChart(topRows)}
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Баланс трансферов по лигам</h2></div>
+        ${divergingChart(leagueRows.map((c) => ({ label: c.name, spent: c.spent || 0, income: c.income || 0 })))}
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <div class="card-head"><h2>Крупнейшие сделки</h2></div>
+        <div class="feed">
+          ${bigDeals.length ? bigDeals.map((t) => transferRow(t, true)).join('') : '<div class="empty">Нет сделок с раскрытой суммой</div>'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Рост стоимости</h2><span class="sub">к предыдущей оценке</span></div>
+        ${
+          risers.length
+            ? `<div class="feed">${risers
+                .map(
+                  (p) => `
+          <div class="transfer transfer--riser" data-player="${esc(p.id)}">
+            <div class="who">${avatar(p)}<div class="who-main"><div class="who-name">${esc(p.name)}</div>
+              <div class="who-sub">${esc(p.clubName)}</div></div></div>
+            <div class="fee"><div class="amt">${fmtMoney(p.marketValue)}</div>
+              <div class="cap">с ${fmtMoney(p.previousValue)}</div></div>
+            <div class="meta">${deltaHtml(p.marketValue, p.previousValue)}</div>
+          </div>`,
+                )
+                .join('')}</div>`
+            : `<div class="empty">Журнал изменений пока пуст.<br>Он наполняется по мере обновлений из API.</div>`
+        }
+      </div>
+    </div>
+  </div>
+  ${footnote()}`;
+}
+
+function viewPlayers() {
+  const f = S.filters.players;
+  const rows = filteredPlayers();
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  f.page = Math.min(f.page, pages - 1);
+  const slice = rows.slice(f.page * PAGE_SIZE, (f.page + 1) * PAGE_SIZE);
+
+  const th = (key, label, cls = '') => {
+    const on = f.sort === key;
+    return `<th class="sortable ${cls} ${on ? 'sorted' : ''}" data-sort="${key}">${label}
+      <span class="arrow">${on ? (f.dir < 0 ? '▼' : '▲') : '↕'}</span></th>`;
+  };
+
+  return `
+  ${S.data.source === 'seed' ? noteBlock() : ''}
+  <div class="page-head">
+    <div><h1>Рейтинг рыночной стоимости</h1>
+    <p>Оценки игроков и изменение к предыдущему замеру</p></div>
+  </div>
+
+  <div class="filters">
+    <select data-filter="comp">
+      <option value="all">Все лиги</option>
+      ${S.data.competitions.map((c) => `<option value="${esc(c.id)}" ${f.comp === c.id ? 'selected' : ''}>${esc(c.flag || '')} ${esc(c.name)}</option>`).join('')}
+    </select>
+    <div class="chips" data-filter-group="pos">
+      ${[['all', 'Все'], ['GK', 'ВР'], ['DF', 'ЗЩ'], ['MF', 'ПЗ'], ['FW', 'НП']]
+        .map(([v, l]) => `<button class="chip ${f.pos === v ? 'active' : ''}" data-pos="${v}">${l}</button>`)
+        .join('')}
+    </div>
+    <select data-filter="ageMax">
+      <option value="all">Любой возраст</option>
+      <option value="21" ${f.ageMax === '21' ? 'selected' : ''}>до 21 года</option>
+      <option value="23" ${f.ageMax === '23' ? 'selected' : ''}>до 23 лет</option>
+      <option value="26" ${f.ageMax === '26' ? 'selected' : ''}>до 26 лет</option>
+    </select>
+    <input type="text" data-filter="q" placeholder="Имя или клуб" value="${esc(f.q)}" />
+    <span class="spacer">${rows.length.toLocaleString('ru-RU')} игроков</span>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th class="rank">#</th>
+          ${th('name', 'Игрок')}
+          <th>Позиция</th>
+          ${th('age', 'Возраст', 'num')}
+          <th>Клуб</th>
+          ${th('marketValue', 'Стоимость', 'num')}
+          <th class="num">Δ</th>
+        </tr></thead>
+        <tbody>
+          ${
+            slice.length
+              ? slice
+                  .map(
+                    (p, i) => `
+            <tr data-player="${esc(p.id)}">
+              <td class="rank">${f.page * PAGE_SIZE + i + 1}</td>
+              <td><div class="who">${avatar(p)}<div class="who-main">
+                <div class="who-name">${esc(p.name)}</div>
+                <div class="who-sub">${esc((p.nationality || []).slice(0, 2).join(', ') || '—')}</div>
+              </div></div></td>
+              <td>${posTag(p)}</td>
+              <td class="num">${p.age ?? '—'}</td>
+              <td><div class="who-main"><div class="who-name" style="font-weight:400">${esc(p.clubName)}</div>
+                <div class="who-sub">${esc(p.competitionName || '')}</div></div></td>
+              <td class="num money">${fmtMoney(p.marketValue)}</td>
+              <td class="num">${deltaHtml(p.marketValue, p.previousValue)}</td>
+            </tr>`,
+                  )
+                  .join('')
+              : '<tr><td colspan="7"><div class="empty">Ничего не найдено</div></td></tr>'
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn" data-page="prev" ${f.page === 0 ? 'disabled' : ''}>← Назад</button>
+      <span>Страница ${f.page + 1} из ${pages}</span>
+      <button class="btn" data-page="next" ${f.page >= pages - 1 ? 'disabled' : ''}>Вперёд →</button>
+    </div>
+  </div>
+  ${footnote()}`;
+}
+
+const ARROW = `<svg class="arr" viewBox="0 0 20 12" width="20" height="11" aria-hidden="true"><path d="M1 6h16m0 0l-4.5-4.5M17 6l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+/**
+ * @param {object} t     трансфер
+ * @param {boolean} compact  узкий вариант для боковой карточки: маршрут переносится
+ *                           на вторую строку, чтобы названия клубов не схлопывались
+ */
+function transferRow(t, compact = false) {
+  const badge = t.upcoming
+    ? '<span class="badge badge--upcoming">Ожидается</span>'
+    : t.fee === 0
+      ? '<span class="badge badge--free">Свободный агент</span>'
+      : '';
+  const fee = t.fee === null || t.fee === undefined ? '—' : fmtMoney(t.fee);
+  const est = Number.isFinite(t.marketValue) ? `оценка ${fmtMoney(t.marketValue)}` : '';
+  return `
+  <div class="transfer${compact ? ' transfer--compact' : ''}" ${t.playerId ? `data-player="${esc(t.playerId)}"` : ''}>
+    <div class="who">${avatar({ name: t.playerName })}<div class="who-main">
+      <div class="who-name">${esc(t.playerName)}</div>
+      <div class="who-sub">${esc(t.position || '')}${t.age ? ` · ${t.age} лет` : ''}</div>
+    </div></div>
+    <div class="route">
+      <span class="club">${esc(t.from.name)}</span>${ARROW}<span class="club to">${esc(t.to.name)}</span>
+    </div>
+    <div class="fee">
+      <div class="amt">${fee}</div>
+      ${est ? `<div class="cap">${est}</div>` : ''}
+    </div>
+    <div class="meta">${badge || fmtDate(t.date)}</div>
+  </div>`;
+}
+
+function viewTransfers() {
+  const f = S.filters.transfers;
+  let rows = S.data.transfers.slice();
+  if (f.comp !== 'all') {
+    const ids = new Set(S.data.clubs.filter((c) => c.competitionId === f.comp).map((c) => c.name));
+    rows = rows.filter((t) => ids.has(t.to.name) || ids.has(t.from.name));
+  }
+  if (f.min) rows = rows.filter((t) => (t.fee || 0) >= f.min);
+  rows.sort((a, b) => (f.sort === 'fee' ? (b.fee || 0) - (a.fee || 0) : (b.date || '').localeCompare(a.date || '')));
+
+  const sum = rows.reduce((s, t) => s + (t.fee || 0), 0);
+
+  return `
+  ${S.data.source === 'seed' ? noteBlock() : ''}
+  <div class="page-head">
+    <div><h1>Лента трансферов</h1><p>Переходы игроков из отслеживаемых лиг</p></div>
+  </div>
+
+  <div class="grid grid-3" style="margin-bottom:18px">
+    ${tile('Сделок в выборке', String(rows.length))}
+    ${tile('Общая сумма', fmtMoney(sum))}
+    ${tile('Средняя сумма', fmtMoney(rows.filter((t) => t.fee).length ? sum / rows.filter((t) => t.fee).length : 0))}
+  </div>
+
+  <div class="filters">
+    <select data-tfilter="comp">
+      <option value="all">Все лиги</option>
+      ${S.data.competitions.map((c) => `<option value="${esc(c.id)}" ${f.comp === c.id ? 'selected' : ''}>${esc(c.flag || '')} ${esc(c.name)}</option>`).join('')}
+    </select>
+    <select data-tfilter="min">
+      <option value="0">Любая сумма</option>
+      <option value="10000000" ${f.min == 10000000 ? 'selected' : ''}>от €10 млн</option>
+      <option value="30000000" ${f.min == 30000000 ? 'selected' : ''}>от €30 млн</option>
+      <option value="60000000" ${f.min == 60000000 ? 'selected' : ''}>от €60 млн</option>
+    </select>
+    <div class="chips" data-tsort-group>
+      <button class="chip ${f.sort === 'date' ? 'active' : ''}" data-tsort="date">По дате</button>
+      <button class="chip ${f.sort === 'fee' ? 'active' : ''}" data-tsort="fee">По сумме</button>
+    </div>
+  </div>
+
+  <div class="feed">${rows.length ? rows.map(transferRow).join('') : '<div class="card"><div class="empty">Трансферов не найдено</div></div>'}</div>
+  ${footnote()}`;
+}
+
+function viewClubs() {
+  const f = S.filters.clubs;
+  let clubs = S.data.clubs.slice();
+  if (f.comp !== 'all') clubs = clubs.filter((c) => c.competitionId === f.comp);
+  const max = Math.max(...clubs.map((c) => c.totalValue || 0), 1);
+
+  return `
+  ${S.data.source === 'seed' ? noteBlock() : ''}
+  <div class="page-head"><div><h1>Клубы</h1><p>Стоимость составов и баланс трансферного окна</p></div></div>
+
+  <div class="filters">
+    <select data-cfilter="comp">
+      <option value="all">Все лиги</option>
+      ${S.data.competitions.map((c) => `<option value="${esc(c.id)}" ${f.comp === c.id ? 'selected' : ''}>${esc(c.flag || '')} ${esc(c.name)}</option>`).join('')}
+    </select>
+    <span class="spacer">${clubs.length} клубов</span>
+  </div>
+
+  <div class="grid grid-3">
+    ${clubs
+      .map(
+        (c) => `
+      <div class="card club-card">
+        <div class="club-top">
+          ${c.image ? `<span class="avatar"><img src="${esc(c.image)}" alt="" loading="lazy" onerror="this.remove()"></span>` : `<span class="avatar">${esc(initials(c.name))}</span>`}
+          <div><div class="club-name">${esc(c.name)}</div><div class="club-league">${esc(c.competitionName)}</div></div>
+        </div>
+        <div>
+          <div class="club-value">${fmtMoney(c.totalValue)}</div>
+          <div class="bar-track" style="margin-top:8px"><div class="bar-fill" style="width:${((c.totalValue || 0) / max) * 100}%"></div></div>
+        </div>
+        <div class="club-stats">
+          <span>Состав <b>${c.squadSize ?? '—'}</b></span>
+          <span>Ср. возраст <b>${c.avgAge ?? '—'}</b></span>
+          <span>Баланс ${
+            Number.isFinite(c.balance)
+              ? `<span class="delta delta--${c.balance >= 0 ? 'up' : 'down'}">${fmtMoney(c.balance, { sign: true })}</span>`
+              : '<b>—</b>'
+          }</span>
+        </div>
+      </div>`,
+      )
+      .join('')}
+  </div>
+  ${footnote()}`;
+}
+
+function viewLeagues() {
+  const comps = S.data.competitions.slice().sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0));
+  const rows = comps.map((c) => ({ label: c.name, value: c.totalValue || 0 }));
+
+  return `
+  ${S.data.source === 'seed' ? noteBlock() : ''}
+  <div class="page-head"><div><h1>Лиги</h1><p>Суммарная стоимость составов и трансферный баланс</p></div></div>
+
+  <div class="grid grid-2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-head"><h2>Стоимость лиг</h2><span class="sub">сумма по клубам выборки</span></div>
+      ${hBarChart(rows, { labelW: 150 })}
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Потрачено / заработано</h2></div>
+      ${divergingChart(comps.map((c) => ({ label: c.name, spent: c.spent || 0, income: c.income || 0 })))}
+    </div>
+  </div>
+
+  <div class="table-wrap"><div class="table-scroll"><table>
+    <thead><tr><th>Лига</th><th>Страна</th><th class="num">Клубов</th><th class="num">Стоимость</th>
+      <th class="num">Потрачено</th><th class="num">Заработано</th><th class="num">Баланс</th></tr></thead>
+    <tbody>${comps
+      .map((c) => {
+        const bal = (c.income || 0) - (c.spent || 0);
+        return `<tr style="cursor:default">
+        <td><b>${esc(c.flag || '')} ${esc(c.name)}</b></td>
+        <td style="color:var(--text-2)">${esc(c.country)}</td>
+        <td class="num">${c.clubs}</td>
+        <td class="num money">${fmtMoney(c.totalValue)}</td>
+        <td class="num money">${fmtMoney(c.spent)}</td>
+        <td class="num money">${fmtMoney(c.income)}</td>
+        <td class="num"><span class="delta delta--${bal >= 0 ? 'up' : 'down'}">${fmtMoney(bal, { sign: true })}</span></td>
+      </tr>`;
+      })
+      .join('')}</tbody>
+  </table></div></div>
+  ${footnote()}`;
+}
+
+function noteBlock() {
+  return `<div class="note">
+    <span>⚠</span>
+    <div><b>Интерактивное превью.</b> Здесь встроен офлайн-срез из открытых публикаций на 25.08.2026;
+    помесячная история стоимости в нём синтезирована. Живые данные Transfermarkt подключаются
+    только в локальной версии — она ходит в self-hosted API, а опубликованная страница внешние
+    запросы делать не может. Всё остальное — фильтры, сортировка, поиск, карточки игроков — рабочее.</div>
+  </div>`;
+}
+
+function footnote() {
+  const s = S.status;
+  return `<div class="footnote">
+    Источник: ${
+      S.data.source === 'live'
+        ? `self-hosted <a class="ext-link" href="https://github.com/felipeall/transfermarkt-api" target="_blank" rel="noopener">transfermarkt-api</a> → данные Transfermarkt`
+        : 'офлайн-срез из открытых публикаций'
+    }.
+    Обновлено: ${fmtDateTime(S.data.generatedAt)}${s?.counts ? ` · ${s.counts.players} игроков, ${s.counts.clubs} клубов` : ''}.
+  </div>`;
+}
+
+/* ── Карточка игрока ───────────────────────────────────────────────────── */
+
+async function openPlayer(id) {
+  const drawer = $('#drawer');
+  const body = $('#drawer-body');
+  drawer.hidden = false;
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = `
+    <div class="p-head"><div class="skeleton" style="width:58px;height:58px;border-radius:14px"></div>
+      <div style="flex:1"><div class="skeleton" style="height:20px;width:60%"></div>
+      <div class="skeleton" style="height:14px;width:40%;margin-top:8px"></div></div></div>
+    <div class="skeleton" style="height:190px;margin-top:20px"></div>`;
+
+  let d;
+  try {
+    d = await api(`/api/players/${encodeURIComponent(id)}`);
+  } catch {
+    body.innerHTML = '<div class="empty">Не удалось загрузить карточку игрока</div>';
+    return;
+  }
+  const p = d.player;
+  if (!p) {
+    body.innerHTML = '<div class="empty">Игрок не найден</div>';
+    return;
+  }
+  const hist = (d.history || []).filter((h) => Number.isFinite(h.value));
+  const peak = hist.length ? Math.max(...hist.map((h) => h.value)) : null;
+  // Дельта считается по журналу сервера (та же цифра, что в таблице рейтинга);
+  // история — только запасной источник.
+  const prev = Number.isFinite(p.previousValue)
+    ? p.previousValue
+    : hist.length > 1
+      ? hist[hist.length - 2].value
+      : null;
+
+  body.innerHTML = `
+  <div class="p-head">
+    ${avatar(p)}
+    <div>
+      <h2>${esc(p.name)}</h2>
+      <div class="p-sub">${esc(p.clubName)}${p.competitionName && p.competitionName !== '—' ? ' · ' + esc(p.competitionName) : ''}</div>
+    </div>
+  </div>
+
+  <div class="p-hero">
+    <div class="big">${fmtMoney(p.marketValue)}</div>
+    <div style="padding-bottom:6px">${deltaHtml(p.marketValue, prev)}</div>
+  </div>
+
+  <div class="p-facts">
+    <div class="p-fact"><div class="k">Позиция</div><div class="v">${esc(p.position || '—')}</div></div>
+    <div class="p-fact"><div class="k">Возраст</div><div class="v">${p.age ?? '—'}</div></div>
+    <div class="p-fact"><div class="k">Гражданство</div><div class="v">${esc((p.nationality || []).slice(0, 2).join(', ') || '—')}</div></div>
+    <div class="p-fact"><div class="k">Рост</div><div class="v">${p.height ? p.height + ' см' : '—'}</div></div>
+    <div class="p-fact"><div class="k">Нога</div><div class="v">${esc(FOOT_RU[p.foot] || p.foot || '—')}</div></div>
+    <div class="p-fact"><div class="k">Контракт до</div><div class="v">${fmtDateFull(p.contract)}</div></div>
+  </div>
+
+  <div class="p-section-title">Динамика рыночной стоимости</div>
+  ${lineChart(hist.map((h) => ({ date: h.date, value: h.value, clubName: h.clubName })))}
+  ${peak ? `<div class="footnote" style="margin-top:8px">Пик: ${fmtMoney(peak)}${d.ranking?.Worldwide ? ` · место в мире: ${d.ranking.Worldwide}` : ''}</div>` : ''}
+
+  <div class="p-section-title">История трансферов</div>
+  ${
+    (d.transfers || []).length
+      ? `<div class="timeline">${d.transfers
+          .slice(0, 12)
+          .map(
+            (t) => `<div class="tl-item">
+        <div class="tl-date">${esc(t.season || fmtDate(t.date))}</div>
+        <div class="route"><span class="club">${esc(t.from.name)}</span>${ARROW}<span class="club to">${esc(t.to.name)}</span></div>
+        <div class="money">${t.fee === 0 ? 'свободный' : fmtMoney(t.fee)}</div>
+      </div>`,
+          )
+          .join('')}</div>`
+      : '<div class="empty">Нет данных о трансферах</div>'
+  }
+
+  ${p.url ? `<div style="margin-top:20px"><a class="ext-link" href="${esc(p.url)}" target="_blank" rel="noopener">Профиль на Transfermarkt ↗</a></div>` : ''}
+  ${d.source === 'seed' ? '<div class="footnote">Карточка построена по офлайн-срезу: история стоимости синтезирована.</div>' : ''}`;
+}
+
+function closeDrawer() {
+  $('#drawer').hidden = true;
+  document.body.style.overflow = '';
+}
+
+/* ── Фильтрация ────────────────────────────────────────────────────────── */
+
+function filteredPlayers() {
+  const f = S.filters.players;
+  let rows = S.data.players.slice();
+  if (f.comp !== 'all') rows = rows.filter((p) => p.competitionId === f.comp);
+  if (f.pos !== 'all') rows = rows.filter((p) => p.positionGroup === f.pos);
+  if (f.ageMax !== 'all') rows = rows.filter((p) => Number.isFinite(p.age) && p.age <= Number(f.ageMax));
+  if (f.q.trim()) {
+    const q = f.q.trim().toLowerCase();
+    rows = rows.filter((p) => p.name.toLowerCase().includes(q) || (p.clubName || '').toLowerCase().includes(q));
+  }
+  const key = f.sort;
+  rows.sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (typeof av === 'string' || typeof bv === 'string') {
+      return String(av || '').localeCompare(String(bv || ''), 'ru') * f.dir * -1;
+    }
+    return ((bv ?? -Infinity) - (av ?? -Infinity)) * (f.dir < 0 ? 1 : -1);
+  });
+  return rows;
+}
+
+/* ── Роутер ────────────────────────────────────────────────────────────── */
+
+const VIEWS = {
+  overview: viewOverview,
+  players: viewPlayers,
+  transfers: viewTransfers,
+  clubs: viewClubs,
+  leagues: viewLeagues,
+};
+
+function currentView() {
+  const name = (location.hash.replace(/^#\//, '') || 'overview').split('?')[0];
+  return VIEWS[name] ? name : 'overview';
+}
+
+function render() {
+  const name = currentView();
+  $('#view').innerHTML = VIEWS[name]();
+  document.querySelectorAll('.rail a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
+  window.scrollTo({ top: 0 });
+}
+
+/* ── События ───────────────────────────────────────────────────────────── */
+
+addEventListener('hashchange', render);
+
+document.addEventListener('click', (e) => {
+  const closer = e.target.closest('[data-close]');
+  if (closer) return closeDrawer();
+
+  const row = e.target.closest('[data-player]');
+  if (row) {
+    const id = row.dataset.player;
+    if (id) openPlayer(id);
+    return;
+  }
+
+  const sortTh = e.target.closest('th[data-sort]');
+  if (sortTh) {
+    const f = S.filters.players;
+    const k = sortTh.dataset.sort;
+    if (f.sort === k) f.dir *= -1;
+    else { f.sort = k; f.dir = -1; }
+    f.page = 0;
+    return render();
+  }
+
+  const pos = e.target.closest('[data-pos]');
+  if (pos) { S.filters.players.pos = pos.dataset.pos; S.filters.players.page = 0; return render(); }
+
+  const tsort = e.target.closest('[data-tsort]');
+  if (tsort) { S.filters.transfers.sort = tsort.dataset.tsort; return render(); }
+
+  const pg = e.target.closest('[data-page]');
+  if (pg && !pg.disabled) {
+    S.filters.players.page += pg.dataset.page === 'next' ? 1 : -1;
+    return render();
+  }
+});
+
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.filter) {
+    S.filters.players[t.dataset.filter] = t.value;
+    S.filters.players.page = 0;
+    return render();
+  }
+  if (t.dataset.tfilter) {
+    S.filters.transfers[t.dataset.tfilter] = t.dataset.tfilter === 'min' ? Number(t.value) : t.value;
+    return render();
+  }
+  if (t.dataset.cfilter) { S.filters.clubs[t.dataset.cfilter] = t.value; return render(); }
+});
+
+let qTimer;
+document.addEventListener('input', (e) => {
+  if (e.target.dataset.filter === 'q') {
+    clearTimeout(qTimer);
+    const v = e.target.value;
+    qTimer = setTimeout(() => {
+      S.filters.players.q = v;
+      S.filters.players.page = 0;
+      render();
+      const inp = $('input[data-filter="q"]');
+      if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+    }, 220);
+  }
+});
+
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeDrawer(); $('#search-results').hidden = true; }
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('#search-input').focus(); }
+});
+
+/* Тултипы графиков */
+document.addEventListener('mousemove', (e) => {
+  const hit = e.target.closest('[data-tip]');
+  if (!hit) { hideTip(); clearFocus(); return; }
+  const parts = hit.dataset.tip.split('|');
+  showTip(`<b>${parts[0]}</b>${parts.slice(1).map((p) => `<div class="tt-row">${p}</div>`).join('')}`, e.clientX, e.clientY);
+
+  if (hit.classList.contains('pt-hit')) {
+    const svg = hit.closest('svg');
+    const cross = svg.querySelector('.crosshair');
+    const dot = svg.querySelector('.focus-dot');
+    const cx = hit.dataset.cx, cy = hit.dataset.cy;
+    if (cross) { cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', '.9'); }
+    if (dot) { dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1'); }
+  } else clearFocus();
+});
+
+function clearFocus() {
+  document.querySelectorAll('.crosshair, .focus-dot').forEach((n) => n.setAttribute('opacity', '0'));
+}
+
+/* Глобальный поиск */
+const searchInput = $('#search-input');
+const searchBox = $('#search-results');
+let sTimer;
+searchInput.addEventListener('input', () => {
+  clearTimeout(sTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 2) { searchBox.hidden = true; return; }
+  sTimer = setTimeout(async () => {
+    try {
+      const r = await api(`/api/search?q=${encodeURIComponent(q)}`);
+      searchBox.hidden = false;
+      searchBox.innerHTML = r.results.length
+        ? r.results
+            .map(
+              (x) => `<button data-player="${esc(x.id)}">
+          <span class="avatar">${esc(initials(x.name))}</span>
+          <span><span class="sr-name">${esc(x.name)}</span><br><span class="sr-club">${esc(x.club)} · ${esc(x.position)}</span></span>
+          <span class="sr-val">${fmtMoney(x.marketValue)}</span></button>`,
+            )
+            .join('')
+        : '<div class="search-empty">Ничего не найдено</div>';
+    } catch {
+      searchBox.hidden = true;
+    }
+  }, 280);
+});
+searchInput.addEventListener('blur', () => setTimeout(() => { searchBox.hidden = true; }, 180));
+
+/* Обновление */
+
+/* ── Статус и загрузка ─────────────────────────────────────────────────── */
+
+function paintStatus(st) {
+  const pill = $('#status-pill');
+  const text = $('#status-text');
+  const bar = $('#build-bar');
+  const fill = $('#build-bar-fill');
+  const btext = $('#build-bar-text');
+
+  pill.className = 'pill ' + (st.status === 'live' ? 'pill--live' : st.status === 'error' ? 'pill--error' : 'pill--seed');
+  text.textContent =
+    st.status === 'live' ? 'Live · API' :
+    st.status === 'building' ? 'Обновление…' :
+    st.status === 'error' ? 'Демо · API недоступен' : 'Демо-данные';
+  pill.title = st.error ? `${st.error}` : `Апстрим: ${st.upstream}`;
+
+  if (st.status === 'building') {
+    const { done, total, step } = st.progress || {};
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    bar.hidden = false;
+    fill.style.width = `${pct}%`;
+    btext.textContent = `${step} — ${done}/${total} (${pct}%)`;
+  } else {
+    bar.hidden = true;
+  }
+}
+
+async function loadDataset() {
+  const d = await api('/api/dataset');
+  S.data = d;
+  S.version = d.version;
+  render();
+}
+
+async function pollStatus() {
+  try {
+    const st = await api('/api/status');
+    S.status = st;
+    paintStatus(st);
+    if (st.version !== S.version) await loadDataset();
+  } catch {
+    /* сервер недоступен — оставляем что есть */
+  }
+}
+
+(async function init() {
+  try {
+    await loadDataset();
+  } catch {
+    $('#view').innerHTML = '<div class="empty">Не удалось загрузить данные превью.</div>';
+  }
+  pollStatus();
+})();
+
+</script>
